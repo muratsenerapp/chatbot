@@ -68,3 +68,8 @@ docker-compose.override.yml
 *.local.*
 *.tmp
 tmp/
+
+
+----
+
+*.iml
