@@ -30,7 +30,15 @@ async def lifespan(app: FastAPI):
         # ChatOllama için özel kapatma gerekmez
 
 
-app = FastAPI(title="Chatbot API", lifespan=lifespan)
+app = FastAPI(
+    title="Chatbot API",
+    version="0.1.0",
+    description="FastAPI + Ollama based chat service.",
+    openapi_url="/api/openapi.json",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
