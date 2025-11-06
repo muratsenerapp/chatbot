@@ -1,0 +1,10 @@
+# Frontend
+
+Vite + React + TypeScript + Tailwind.
+
+## Quick Start
+
+```bash
+npm install
+npm run dev
+```
