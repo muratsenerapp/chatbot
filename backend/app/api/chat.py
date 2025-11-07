@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Optional, AsyncGenerator
@@ -87,7 +88,7 @@ async def chat_stream(
     Events:
       - `event: token` with a token chunk in `data`
       - `event: done` with metrics JSON in `data` (session_id, chars, elapsed_ms)
-      - On errors, an `event: error` is emitted; HTTP status remains 200 for SSE
+      - On backend errors, an `event: backend-error` is emitted; HTTP status stays 200
     """
     start = time.perf_counter()
     sid = session_id
@@ -95,15 +96,22 @@ async def chat_stream(
 
     async def token_gen() -> AsyncGenerator[dict, None]:
         char_count = 0
+        cancelled = False
         try:
             async for t in client.astream_chat([message]):
                 char_count += len(t)
                 yield {"event": "token", "data": t}
+        except asyncio.CancelledError:
+            cancelled = True
+            logger.info("stream:cancelled sid=%s", sid or "-")
+            return
         except Exception as e:
             logger.exception("stream:error sid=%s err=%s", sid or "-", e)
             # Emit an SSE error event (SSE semantics: still 200 status)
-            yield {"event": "error", "data": "Internal server error"}
+            yield {"event": "backend-error", "data": "Internal server error"}
         finally:
+            if cancelled:
+                return
             elapsed = (time.perf_counter() - start) * 1000
             metrics = {
                 "session_id": sid,

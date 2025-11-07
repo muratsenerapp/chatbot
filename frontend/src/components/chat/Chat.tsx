@@ -108,7 +108,7 @@ export default function Chat({ onSend }: Props) {
         clearStreamRefs();
       },
       onServerErrorEvent: (msg) => {
-        // Server emitted `event: error`
+        // Server emitted `event: backend-error`
         markAssistantError(msg || "Server error");
         setError(msg || "Request failed.");
         clearStreamRefs();

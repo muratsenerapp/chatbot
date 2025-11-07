@@ -52,8 +52,8 @@ export function openSSE(url: string, opts: OpenSSEOptions = {}) {
     onOpen?.();
   };
 
-  // Server-sent "error" event
-  es.addEventListener("error", (ev) => {
+  // Server-sent backend error event
+  es.addEventListener("backend-error", (ev) => {
     const me = ev as MessageEvent;
     if (debug) console.debug("[SSE] server error event:", me.data);
     const msg = typeof me.data === "string" ? me.data : "Server error";
@@ -88,6 +88,7 @@ export function openSSE(url: string, opts: OpenSSEOptions = {}) {
     }
     if (debug) console.debug("[SSE] network error:", ev, "readyState:", rs);
     onNetworkError?.(ev);
+    close();
   };
 
   return { es, close };

@@ -114,8 +114,8 @@ def test_chat_stream_get_422_validation_missing_message():
         assert r.status_code == 422
 
 
-def test_chat_stream_get_error_event_instead_of_500():
-    # For SSE, we emit an 'error' event but keep HTTP 200 per SSE semantics.
+def test_chat_stream_get_backend_error_event_instead_of_500():
+    # For SSE, we emit a backend-error event but keep HTTP 200 per SSE semantics.
     with override_client(FakeFailClient()):
         c = TestClient(app)
         with c.stream("GET", "/api/chat/stream", params={"message": "hello"}) as resp:
@@ -123,7 +123,7 @@ def test_chat_stream_get_error_event_instead_of_500():
             saw_error = False
             for i, chunk in enumerate(resp.iter_lines()):
                 line = chunk.decode() if isinstance(chunk, bytes) else chunk
-                if line.startswith("event: error"):
+                if line.startswith("event: backend-error"):
                     saw_error = True
                     break
                 if i > 50:  # safety break
