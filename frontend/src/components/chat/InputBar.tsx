@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { SendHorizontal } from "lucide-react";
+import { SendHorizontal, Square } from "lucide-react";
 
 type Props = {
   onSubmit: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  isStreaming?: boolean;
+  onAbort?: () => void;
 };
 
 export default function InputBar({
   onSubmit,
   disabled = false,
   placeholder = "Type your message…",
+  isStreaming = false,
+  onAbort,
 }: Props) {
   const [value, setValue] = useState("");
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Simple auto-grow up to 200px
   useEffect(() => {
     const el = taRef.current;
     if (!el) return;
@@ -24,7 +27,7 @@ export default function InputBar({
   }, [value]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !isStreaming) {
       e.preventDefault();
       trySubmit();
     }
@@ -32,12 +35,12 @@ export default function InputBar({
 
   function trySubmit() {
     const text = value.trim();
-    if (!text) return;
+    if (!text || isStreaming) return;
     onSubmit(text);
     setValue("");
   }
 
-  const canSend = value.trim().length > 0 && !disabled;
+  const canSend = value.trim().length > 0 && !disabled && !isStreaming;
 
   return (
     <div className="rounded-xl border bg-white p-2 shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -54,17 +57,29 @@ export default function InputBar({
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={disabled}
-          aria-disabled={disabled}
+          disabled={disabled || isStreaming}
+          aria-disabled={disabled || isStreaming}
         />
-        <button
-          type="button"
-          onClick={trySubmit}
-          className={`grid h-9 w-9 place-items-center rounded-lg border text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 ${!canSend ? "pointer-events-none opacity-50" : ""}`}
-          aria-label="Send"
-        >
-          <SendHorizontal size={18} />
-        </button>
+
+        {isStreaming ? (
+          <button
+            type="button"
+            onClick={onAbort}
+            className="grid h-9 w-9 place-items-center rounded-lg border text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            aria-label="Stop streaming"
+          >
+            <Square size={18} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={trySubmit}
+            className={`grid h-9 w-9 place-items-center rounded-lg border text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 ${!canSend ? "pointer-events-none opacity-50" : ""}`}
+            aria-label="Send"
+          >
+            <SendHorizontal size={18} />
+          </button>
+        )}
       </div>
       <div className="mt-1 pl-2 text-[11px] text-slate-500">
         Enter: send • Shift+Enter: new line
