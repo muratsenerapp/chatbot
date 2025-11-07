@@ -15,8 +15,9 @@ from app.api import register_routers
 async def lifespan(app: FastAPI):
     """App lifecycle: init logging + singleton LLMClient."""
     setup_logging(os.getenv("LOG_LEVEL", "INFO"))
-    log = get_logger()
-    log.info("Starting application")
+    logger = get_logger()
+    app.state.logger = logger
+    logger.info("Starting application")
 
     # create and cache a single LLMClient for the whole app lifetime
     app.state.llm_client = LLMClient(
@@ -26,8 +27,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        log.info("Shutting down application")
-        # ChatOllama için özel kapatma gerekmez
+        logger.info("Shutting down application")
 
 
 app = FastAPI(
