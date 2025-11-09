@@ -4,6 +4,7 @@ import InputBar from "./InputBar";
 import type { ChatMessage } from "@/types/chat";
 import { AlertTriangle, MessageCircle, RotateCw } from "lucide-react";
 import { openSSE } from "@/lib/sse";
+import { closeAndClear } from "./stream-utils";
 
 type Props = {
   /**
@@ -44,6 +45,12 @@ export default function Chat({ onSend }: Props) {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    return () => {
+      closeAndClear(esCloserRef);
+    };
+  }, []);
 
   function pushUserMessage(text: string) {
     const userMsg: ChatMessage = { id: newId(), role: "user", content: text };
@@ -157,10 +164,7 @@ export default function Chat({ onSend }: Props) {
   }
 
   function handleAbort() {
-    if (esCloserRef.current) {
-      esCloserRef.current();
-      esCloserRef.current = null;
-    }
+    closeAndClear(esCloserRef);
   }
 
   function handleRetry() {

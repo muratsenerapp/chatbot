@@ -46,6 +46,7 @@ dist/
 
 # ---- Node / Frontend ----
 node_modules/
+dist-test/
 *.tsbuildinfo
 
 # Vite / React artifacts

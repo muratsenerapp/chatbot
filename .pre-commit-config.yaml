@@ -26,15 +26,17 @@ repos:
     rev: v9.38.0
     hooks:
       - id: eslint
+        name: eslint (frontend)
         args:
           - "--config"
           - "frontend/eslint.config.js"
           - "--ext"
-          - ".ts,.tsx"
-        files: "^frontend/.*\\.(ts|tsx)$"
+          - ".ts,.tsx,.js,.jsx"
+          - "--fix"
+        files: "^frontend/.*\\.(ts|tsx|js|jsx)$"
 
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        files: ^frontend/
+        files: "^frontend/.*\\.(ts|tsx|js|jsx|json|css|scss|md|html)$"

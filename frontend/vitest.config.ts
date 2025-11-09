@@ -1,0 +1,27 @@
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import tsconfigPaths from "vite-tsconfig-paths";
+import { fileURLToPath } from "node:url";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tsconfigPaths({ projects: ["./tsconfig.app.json", "./tsconfig.json"] }),
+  ],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@components": fileURLToPath(
+        new URL("./src/components", import.meta.url),
+      ),
+      "@lib": fileURLToPath(new URL("./src/lib", import.meta.url)),
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true, // ← expect, describe, it global olsun
+    environmentOptions: { jsdom: { url: "http://localhost/" } },
+    setupFiles: "./tests/setup.ts",
+    include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+  },
+});

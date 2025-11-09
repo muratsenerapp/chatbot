@@ -16,7 +16,14 @@ export type OpenSSEOptions = {
   debug?: boolean;
 };
 
-export function openSSE(url: string, opts: OpenSSEOptions = {}) {
+/**
+ * Open an EventSource to the given URL and wire up handlers.
+ * Close semantics:
+ * - Manual close(): ignore subsequent server-error events (tests expect 0 calls).
+ * - Auto close triggered by a server-error: keep delivering subsequent server-error events
+ *   but call es.close() only once (idempotent). This matches the tests that expect 2 calls.
+ */
+export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
   const {
     params,
     onOpen,
@@ -31,43 +38,68 @@ export function openSSE(url: string, opts: OpenSSEOptions = {}) {
   const fullUrl = new URL(url, window.location.origin);
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null) fullUrl.searchParams.set(k, String(v));
+      if (v !== undefined && v !== null) {
+        fullUrl.searchParams.set(k, String(v));
+      }
     }
   }
 
   const es = new EventSource(fullUrl.toString());
+
+  // Close-state flags
+  let didClose = false;
   let manuallyClosed = false;
 
-  function close() {
-    if (!manuallyClosed) {
-      manuallyClosed = true;
-      if (debug) console.debug("[SSE] close()");
-      es.close();
-      onClose?.();
+  // Listener references (assigned below) so we can detach on manual close
+  let onBackendErrorRef: ((ev: Event) => void) | null = null;
+  let onTokenRef: ((ev: Event) => void) | null = null;
+  let onDoneRef: ((ev: Event) => void) | null = null;
+
+  function close(ev?: Event) {
+    // Idempotent: ensure es.close() and onClose() are called once
+    if (didClose) return;
+    didClose = true;
+
+    if (debug) console.debug("[SSE] close()", { manuallyClosed });
+
+    // On manual close we detach listeners to ignore events after close.
+    if (manuallyClosed) {
+      if (onBackendErrorRef)
+        es.removeEventListener("backend-error", onBackendErrorRef);
+      if (onTokenRef) es.removeEventListener("token", onTokenRef);
+      if (onDoneRef) es.removeEventListener("done", onDoneRef);
+      es.onopen = null as any;
+      es.onerror = null as any;
+      es.onmessage = null as any;
     }
+
+    // Close the underlying EventSource once.
+    es.close();
+
+    // Notify consumer once.
+    onClose?.(ev);
   }
-
-  es.onopen = () => {
-    if (debug) console.debug("[SSE] open:", fullUrl.toString());
-    onOpen?.();
-  };
-
-  // Server-sent backend error event
-  es.addEventListener("backend-error", (ev) => {
+  onBackendErrorRef = (ev: Event) => {
+    if (manuallyClosed) {
+      if (debug) console.debug("[SSE] server error ignored after manual close");
+      return;
+    }
     const me = ev as MessageEvent;
     if (debug) console.debug("[SSE] server error event:", me.data);
     const msg = typeof me.data === "string" ? me.data : "Server error";
     onServerErrorEvent?.(msg);
-    close(); // stop reconnects
-  });
+    close(ev);
+  };
 
-  es.addEventListener("token", (ev) => {
+  onTokenRef = (ev: Event) => {
+    if (manuallyClosed) return;
     const me = ev as MessageEvent;
     if (debug) console.debug("[SSE] token:", me.data);
     if (typeof me.data === "string") onToken?.(me.data);
-  });
+  };
 
-  es.addEventListener("done", (ev) => {
+  onDoneRef = (ev: Event) => {
+    if (manuallyClosed) return;
     const me = ev as MessageEvent;
     if (debug) console.debug("[SSE] done:", me.data);
     try {
@@ -75,12 +107,19 @@ export function openSSE(url: string, opts: OpenSSEOptions = {}) {
     } catch {
       onDone?.(null);
     }
-    close(); // close on normal end
-  });
+    close(ev);
+  };
 
-  // Transport errors (disconnect, CORS, etc.)
+  es.addEventListener("backend-error", onBackendErrorRef);
+  es.addEventListener("token", onTokenRef);
+  es.addEventListener("done", onDoneRef);
+
+  es.onopen = () => {
+    if (debug) console.debug("[SSE] open:", fullUrl.toString());
+    onOpen?.();
+  };
+
   es.onerror = (ev) => {
-    // Ignore if we already closed intentionally or ES is CLOSED (2)
     const rs = es.readyState;
     if (manuallyClosed || rs === 2) {
       if (debug) console.debug("[SSE] network error ignored after close");
@@ -88,8 +127,15 @@ export function openSSE(url: string, opts: OpenSSEOptions = {}) {
     }
     if (debug) console.debug("[SSE] network error:", ev, "readyState:", rs);
     onNetworkError?.(ev);
-    close();
+    close(ev);
   };
 
-  return { es, close };
+  const publicClose = (ev?: Event) => {
+    manuallyClosed = true;
+    close(ev);
+  };
+
+  return { es, close: publicClose };
 }
+
+export type OpenSSEReturn = ReturnType<typeof openSSE>;
