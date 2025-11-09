@@ -16,7 +16,6 @@ type Props = {
   ) => Promise<ChatMessage | void> | ChatMessage | void;
 };
 
-// Match backend route exactly
 const CHAT_STREAM_URL = "/api/chat/stream";
 
 function newId() {
@@ -31,14 +30,13 @@ export default function Chat({ onSend }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [lastUserInput, setLastUserInput] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null); // optional
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const esCloserRef = useRef<(() => void) | null>(null);
   const streamingAssistantId = useRef<string | null>(null);
 
-  // Autoscroll when near the bottom
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -93,11 +91,9 @@ export default function Chat({ onSend }: Props) {
     setIsStreaming(true);
     setLastUserInput(input);
 
-    // 1) Push user message + create assistant draft
     const userMsg = pushUserMessage(input);
     createAssistantDraft();
 
-    // 2) Open EventSource (GET /api/chat/stream?message=...&session_id=...)
     const closer = openSSE(CHAT_STREAM_URL, {
       params: {
         message: userMsg.content,
@@ -107,27 +103,22 @@ export default function Chat({ onSend }: Props) {
         appendToAssistant(chunk);
       },
       onDone: (metrics) => {
-        // Optionally store session_id if backend returns it
         if (metrics?.session_id && metrics.session_id !== sessionId) {
           setSessionId(metrics.session_id);
         }
-        // Close handled by server (EOS) — we make sure to release refs
         clearStreamRefs();
       },
       onServerErrorEvent: (msg) => {
-        // Server emitted `event: backend-error`
         markAssistantError(msg || "Server error");
         setError(msg || "Request failed.");
         clearStreamRefs();
       },
       onNetworkError: () => {
-        // Transport error (CORS, connection lost, etc.)
         markAssistantError("Network error.");
         setError("Network error. Please try again.");
         clearStreamRefs();
       },
       onClose: () => {
-        // Called when we explicitly close (Stop)
         clearStreamRefs();
       },
     });
@@ -138,7 +129,6 @@ export default function Chat({ onSend }: Props) {
   async function handleSubmit(text: string) {
     if (isStreaming) return;
     if (onSend) {
-      // Non-stream fallback if a custom handler is wired
       setError(null);
       const userMsg = pushUserMessage(text);
       try {

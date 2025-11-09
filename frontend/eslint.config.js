@@ -3,39 +3,42 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
-import { defineConfig, globalIgnores } from "eslint/config";
+import { defineConfig } from "eslint/config";
 
+/**
+ * Remove every `// ...` line comment.
+ * Keeps block comments like /* ... *\/
+ */
 const noLineCommentsRule = {
   meta: {
     type: "problem",
+    docs: { description: "Disallow and auto-remove // line comments" },
     fixable: "code",
     schema: [],
-    messages: {
-      remove: "Line comments starting with // are not allowed. Removed.",
-    },
+    messages: { remove: "Line comments starting with // are not allowed. Removed." },
   },
   create(context) {
-    const src = context.sourceCode;
-    return {
+    const src = context.getSourceCode();    return {
       Program() {
-        for (const c of src.getAllComments()) {
-          if (c.type === "Line") {
-            context.report({
-              loc: c.loc,
-              messageId: "remove",
-              fix(fixer) {
-                const text = src.text;
-                let [start, end] = c.range;
-                while (start > 0 && text[start - 1] !== "\n") {
-                  if (/\s/.test(text[start - 1])) start--;
-                  else break;
-                }
-                if (text[end] === "\r") end++;
-                if (text[end] === "\n") end++;
-                return fixer.removeRange([start, end]);
-              },
-            });
-          }
+        const comments = src.getAllComments();        for (const c of comments) {
+          if (c.type !== "Line") continue;
+          context.report({
+            loc: c.loc,
+            messageId: "remove",
+            fix(fixer) {
+              const t = src.text;
+              const [s, e] = c.range;
+              const lineStart = t.lastIndexOf("\n", s - 1) + 1;
+              const before = t.slice(lineStart, s);
+              const hasCode = /\S/.test(before);
+
+              if (hasCode) {
+                const codeEnd = before.replace(/\s+$/, "").length;
+                return fixer.removeRange([lineStart + codeEnd, e]);
+              }
+              return fixer.removeRange([lineStart, e]);
+            },
+          });
         }
       },
     };
@@ -43,23 +46,36 @@ const noLineCommentsRule = {
 };
 
 export default defineConfig([
-  globalIgnores(["dist", "node_modules"]),
   {
     files: ["**/*.{ts,tsx,js,jsx}"],
+    ignores: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/coverage/**",
+      "**/assets/**",
+      "**/*.min.js",
+      "**/eslint.config.*",
+    ],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: "module",
+        ecmaFeatures: { jsx: true },
+        comment: true, loc: true, range: true, tokens: true,
+      },
+      globals: { ...globals.browser, ...globals.es2022 },
+    },
+
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
       reactHooks.configs["recommended-latest"],
       reactRefresh.configs.vite,
     ],
-    languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: "module",
-      globals: { ...globals.browser, ...globals.es2022 },
-    },
-    plugins: {
-      internal: { rules: { "no-line-comments": noLineCommentsRule } },
-    },
-    rules: { "internal/no-line-comments": "error" },
+
+    plugins: { internal: { rules: { "no-line-comments": noLineCommentsRule } } },
+    rules: { "internal/no-line-comments": "error", "@typescript-eslint/no-explicit-any": "off", },
   },
 ]);

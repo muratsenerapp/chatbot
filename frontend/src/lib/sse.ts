@@ -1,4 +1,3 @@
-// src/lib/sse.ts
 export type OpenSSEOptions = {
   params?: Record<string, string | undefined | null>;
   onOpen?: () => void;
@@ -46,23 +45,19 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
 
   const es = new EventSource(fullUrl.toString());
 
-  // Close-state flags
   let didClose = false;
   let manuallyClosed = false;
 
-  // Listener references (assigned below) so we can detach on manual close
   let onBackendErrorRef: ((ev: Event) => void) | null = null;
   let onTokenRef: ((ev: Event) => void) | null = null;
   let onDoneRef: ((ev: Event) => void) | null = null;
 
   function close(ev?: Event) {
-    // Idempotent: ensure es.close() and onClose() are called once
     if (didClose) return;
     didClose = true;
 
     if (debug) console.debug("[SSE] close()", { manuallyClosed });
 
-    // On manual close we detach listeners to ignore events after close.
     if (manuallyClosed) {
       if (onBackendErrorRef)
         es.removeEventListener("backend-error", onBackendErrorRef);
@@ -73,10 +68,8 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
       es.onmessage = null as any;
     }
 
-    // Close the underlying EventSource once.
     es.close();
 
-    // Notify consumer once.
     onClose?.(ev);
   }
   onBackendErrorRef = (ev: Event) => {

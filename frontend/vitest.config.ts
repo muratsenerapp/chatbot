@@ -19,7 +19,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    globals: true, // ← expect, describe, it global olsun
+    globals: true,
     environmentOptions: { jsdom: { url: "http://localhost/" } },
     setupFiles: "./tests/setup.ts",
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
