@@ -8,23 +8,51 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import register_routers
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger, setup_logging
-from app.services.llm_client import LLMClient
+from app.services.llm_client import LLMClient, DEFAULT_SYSTEM_PROMPT
+from app.services.memory import SessionMemory
 
 
 def create_lifespan(settings: Settings):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        """App lifecycle: init logging + singleton LLMClient."""
-
-        setup_logging(settings.LOG_LEVEL)
-        log = get_logger()
+        # Initialize global state
+        setup_logging(level=settings.LOG_LEVEL)
+        log = get_logger("app")
         log.info("Starting application")
 
-        app.state.settings = settings
+        # Build LLM client with settings-driven generation controls
+        model_kwargs = {
+            "num_ctx": settings.OLLAMA_NUM_CTX,
+            "num_predict": settings.OLLAMA_NUM_PREDICT,
+            "top_p": settings.OLLAMA_TOP_P,
+            "top_k": settings.OLLAMA_TOP_K,
+            "repeat_penalty": settings.OLLAMA_REPEAT_PENALTY,
+        }
+        # Optional advanced knobs
+        if settings.OLLAMA_SEED is not None:
+            model_kwargs["seed"] = settings.OLLAMA_SEED
+        if settings.OLLAMA_STOP:
+            model_kwargs["stop"] = settings.OLLAMA_STOP
+        if settings.OLLAMA_MIROSTAT is not None:
+            model_kwargs["mirostat"] = settings.OLLAMA_MIROSTAT
+        if settings.OLLAMA_MIROSTAT_TAU is not None:
+            model_kwargs["mirostat_tau"] = settings.OLLAMA_MIROSTAT_TAU
+        if settings.OLLAMA_MIROSTAT_ETA is not None:
+            model_kwargs["mirostat_eta"] = settings.OLLAMA_MIROSTAT_ETA
+
+        app.state.settings = settings  # type: ignore[attr-defined]
         app.state.llm_client = LLMClient(
             base_url=settings.OLLAMA_BASE_URL,
             model=settings.OLLAMA_MODEL,
+            temperature=settings.OLLAMA_TEMPERATURE,
+            model_kwargs=model_kwargs,
+            system_prompt=DEFAULT_SYSTEM_PROMPT,
         )
+        # Session-scoped in-memory history
+        app.state.session_memory = SessionMemory(  # type: ignore[attr-defined]
+            default_system_prompt=app.state.llm_client.system_prompt  # type: ignore[attr-defined]
+        )
+
         try:
             yield
         finally:
@@ -35,7 +63,6 @@ def create_lifespan(settings: Settings):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-
     app = FastAPI(
         title="Chatbot API",
         version="0.1.0",
@@ -46,9 +73,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=create_lifespan(settings),
     )
 
+    # CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOW_ORIGINS,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -62,9 +91,4 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-    )
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
