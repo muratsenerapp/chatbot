@@ -1,3 +1,5 @@
+"""FastAPI application factory and lifespan management for the Chatbot backend."""
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -13,6 +15,20 @@ from app.services.memory import SessionMemory
 
 
 def create_lifespan(settings: Settings):
+    """Create the application's lifespan context manager.
+
+    Initializes structured logging and a singleton `LLMClient` so handlers can
+    reuse shared state across requests.
+
+    Args:
+        settings: App configuration used to set log level/CORS and construct the
+            LLM client.
+
+    Returns:
+        An async context manager compatible with FastAPI's `lifespan` parameter
+        that attaches shared objects to `app.state` on startup and cleans up on shutdown.
+    """
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Initialize global state
@@ -62,6 +78,18 @@ def create_lifespan(settings: Settings):
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    Applies CORS from settings, registers API routers under ``/api``,
+    and wires the lifespan handler.
+
+    Args:
+        settings: Optional configuration to use. When ``None``, loads from
+            environment via :func:`get_settings`. Supplying a value eases tests.
+
+    Returns:
+        FastAPI: Configured application instance.
+    """
     settings = settings or get_settings()
     app = FastAPI(
         title="Chatbot API",

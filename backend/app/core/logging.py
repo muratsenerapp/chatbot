@@ -1,3 +1,5 @@
+"""Logging utilities for consistent, project-wide logging configuration and retrieval."""
+
 import logging
 from logging import Logger
 

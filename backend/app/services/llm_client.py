@@ -1,3 +1,5 @@
+"""Thin wrapper around LangChain's ChatOllama providing streaming and convenience helpers."""
+
 from __future__ import annotations
 
 from typing import AsyncGenerator, List, Optional, Sequence
@@ -16,9 +18,7 @@ from app.core.logging import get_logger
 logger = get_logger("services.llm_client")
 
 DEFAULT_SYSTEM_PROMPT = (
-    # Keep this concise and safe. Do not force a specific language; mirror user's language.
     "You are a helpful, concise assistant. "
-    "Always answer in the same language as the user's last message. "
     "Be accurate, avoid hallucinations, and ask for clarification when input is ambiguous."
 )
 
@@ -37,12 +37,28 @@ class LLMClient:
         llm: Optional[object] = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     ) -> None:
+        """Initialize a ChatOllama-backed client with a consistent system prompt.
+
+        Uses an injected ``llm`` when provided (useful for tests); otherwise constructs a
+        streaming-capable network client. Additional provider options can be forwarded via
+        ``model_kwargs``.
+
+        Args:
+            base_url: Base URL of the Ollama server (e.g., ``http://localhost:11434``).
+            model: Name/tag of the model to use on the Ollama server.
+            temperature: Sampling temperature controlling randomness of outputs.
+            model_kwargs: Provider-specific generation options passed to Ollama
+                (for example ``num_ctx``, ``num_predict``).
+            llm: Pre-initialized model object exposing ``astream``/``ainvoke``/``invoke`` to
+                bypass network setup; typically injected in tests.
+            system_prompt: Default system prompt prepended to conversations when not overridden.
+        """
         self.system_prompt = system_prompt
 
         if llm is not None:
-            # For tests: inject a fake model that exposes .astream/.invoke
+            # Accept a pre-initialized compatible client (mock or custom backend).
             self.llm = llm  # type: ignore[assignment]
-            logger.info("LLMClient initialized with injected llm (test/dummy).")
+            logger.info("LLMClient initialized with injected llm.")
             return
 
         kwargs = model_kwargs or {}
@@ -82,8 +98,18 @@ class LLMClient:
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
-        """Async generator yielding text chunks for streaming responses."""
-        # Build messages list; if BaseMessage already provided, keep as-is.
+        """Stream response text chunks as they arrive from the model.
+
+        Args:
+            user_messages: Either raw user turns as strings or a prebuilt list of
+                LangChain messages. When strings are provided, a system message is
+                prepended if available.
+            system_prompt: Per-call override for the default system prompt. If None,
+                `self.system_prompt` is used.
+
+        Yields:
+            str: Pieces of the assistant's textual response in arrival order.
+        """
         if user_messages and isinstance(user_messages[0], BaseMessage):  # type: ignore[index]
             messages: List[BaseMessage] = list(user_messages)  # type: ignore[assignment]
         else:
@@ -109,7 +135,15 @@ class LLMClient:
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: Optional[str] = None,
     ) -> str:
-        """Async convenience method returning the full response text."""
+        """Return the full response text asynchronously.
+
+        Args:
+            user_messages: Raw user turns as strings or a prebuilt list of LangChain messages; when strings are provided, a system message is prepended if available.
+            system_prompt: Per-call override for the default system prompt.
+
+        Returns:
+            Full assistant response as a single string.
+        """
         if user_messages and isinstance(user_messages[0], BaseMessage):  # type: ignore[index]
             messages: List[BaseMessage] = list(user_messages)  # type: ignore[assignment]
         else:
@@ -120,13 +154,20 @@ class LLMClient:
         res = await self.llm.ainvoke(messages)  # use async to align with API layer
         return getattr(res, "content", str(res))
 
-    # Sync version is used by some tests; keep it.
     def invoke(
         self,
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: Optional[str] = None,
     ) -> str:
-        """Synchronous convenience method using the same message build path."""
+        """Return the full response text synchronously.
+
+        Args:
+            user_messages: Raw user turns as strings or a prebuilt list of LangChain messages; when strings are provided, a system message is prepended if available.
+            system_prompt: Per-call override for the default system prompt.
+
+        Returns:
+            Full assistant response as a single string.
+        """
         if user_messages and isinstance(user_messages[0], BaseMessage):  # type: ignore[index]
             messages: List[BaseMessage] = list(user_messages)  # type: ignore[assignment]
         else:

@@ -1,3 +1,5 @@
+"""Chat API endpoints providing single-shot replies and Server-Sent Events (SSE) token streams."""
+
 from __future__ import annotations
 
 import json
@@ -21,6 +23,11 @@ logger = get_logger("api.chat")
 
 
 def get_client(request: Request) -> LLMClient:
+    """Return the app-wide LLMClient; create and cache on first access.
+
+    Args:
+        request: FastAPI request whose ``app.state`` holds shared singletons.
+    """
     llm_client = getattr(request.app.state, "llm_client", None)  # type: ignore[attr-defined]
     if llm_client is None:
         logger.warning(
@@ -32,6 +39,13 @@ def get_client(request: Request) -> LLMClient:
 
 
 def get_memory(request: Request) -> SessionMemory:
+    """Return the session memory store; create and cache on first access.
+
+    Seeds with the current ``LLMClient.system_prompt`` when available.
+
+    Args:
+        request: FastAPI request whose ``app.state`` holds shared singletons.
+    """
     mem = getattr(request.app.state, "session_memory", None)  # type: ignore[attr-defined]
     if mem is None:
         logger.warning(
@@ -46,12 +60,33 @@ def get_memory(request: Request) -> SessionMemory:
     return mem  # type: ignore[return-value]
 
 
-@router.post("/chat", response_model=ChatOut)
+@router.post(
+    "/chat",
+    response_model=ChatOut,
+    summary="Single-shot chat completion",
+    description=(
+        "Generates a single response using the current session history (if any) "
+        "or explicit messages supplied in the request body."
+    ),
+    responses={
+        200: {"description": "OK"},
+        500: {"description": "Internal server error"},
+    },
+)
 async def chat_sync(
     data: ChatIn,
     client: LLMClient = Depends(get_client),
     memory: SessionMemory = Depends(get_memory),
 ) -> ChatOut:
+    """Return a full assistant reply in one call.
+
+    Uses prior session history when `messages` is omitted; otherwise honors the
+    explicit `messages`.
+
+    Raises:
+        HTTPException: On unexpected errors a 500 is raised, wrapping the original
+            exception (see server logs for details).
+    """
     start = time.perf_counter()
     sid = ensure_session_id(data.session_id)
 
@@ -117,13 +152,34 @@ async def chat_sync(
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-@router.get("/chat/stream")
+@router.get(
+    "/chat/stream",
+    summary="SSE token stream",
+    description=(
+        "Streams tokens over Server-Sent Events. Emits `token` events for chunks, "
+        "`done` with basic metrics on completion, and `backend-error` on failures "
+        "(HTTP 200 is kept per SSE semantics)."
+    ),
+    responses={
+        200: {
+            "description": "Event stream of tokens and terminal events.",
+            "content": {"text/event-stream": {}},
+        }
+    },
+)
 async def chat_stream_get(
     message: str = Query(..., min_length=1),
     session_id: Optional[str] = Query(default=None),
     client: LLMClient = Depends(get_client),
     memory: SessionMemory = Depends(get_memory),
 ) -> EventSourceResponse:
+    """Stream assistant tokens via SSE.
+
+    Events: `token` (string chunk), `done` (JSON metrics), `backend-error` (string message).
+    Errors are signaled via SSE events instead of HTTP errors to preserve the
+    stream (per SSE semantics), so this handler does not raise on model/runtime
+    failures.
+    """
     start = time.perf_counter()
     sid = ensure_session_id(session_id)
     logger.info("stream:start sid=%s len=%d", sid, len(message))

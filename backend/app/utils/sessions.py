@@ -1,8 +1,17 @@
+"""Session id utilities."""
+
 from __future__ import annotations
 from typing import Optional
 from uuid import uuid4
 
 
 def ensure_session_id(sid: Optional[str]) -> str:
-    """Return existing session id or fabricate a new uuid4."""
+    """Return the given session id or generate a new UUID4 string.
+
+    Args:
+        sid: Existing session id, if any.
+
+    Returns:
+        A usable session id string (existing one or a new UUID4).
+    """
     return sid or str(uuid4())
