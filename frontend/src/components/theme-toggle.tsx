@@ -12,6 +12,12 @@ function getInitialTheme(): Theme {
     : "light";
 }
 
+/**
+ * Theme switch for toggling light/dark mode.
+ *
+ * @remarks Persists preference in `localStorage` and syncs with system color scheme.
+ * @public
+ */
 export default function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 

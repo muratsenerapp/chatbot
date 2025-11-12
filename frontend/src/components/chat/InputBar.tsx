@@ -1,14 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { SendHorizontal, Square } from "lucide-react";
 
+/** Props for {@link InputBar}. */
 type Props = {
+  /** Send callback invoked on submit. */
   onSubmit: (text: string) => void;
+  /** Disables the input and buttons. */
   disabled?: boolean;
+  /** Placeholder text for the input. */
   placeholder?: string;
+  /** When true, shows an abort button and prevents new submits. */
   isStreaming?: boolean;
+  /** Abort handler for an in-flight request. */
   onAbort?: () => void;
 };
 
+/**
+ * Compact message composer with keyboard submit and abort affordance.
+ *
+ * @remarks Blocks additional submissions while `isStreaming` is true.
+ * @public
+ */
 export default function InputBar({
   onSubmit,
   disabled = false,

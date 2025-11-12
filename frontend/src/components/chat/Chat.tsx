@@ -6,10 +6,9 @@ import { AlertTriangle, MessageCircle, RotateCw } from "lucide-react";
 import { openSSE } from "@/lib/sse";
 import { closeAndClear } from "./stream-utils";
 
+/** Props for {@link Chat}. */
 type Props = {
-  /**
-   * Optional custom handler; if provided, streaming here is bypassed.
-   */
+  /** Optional custom send handler; bypasses built-in SSE. */
   onSend?: (
     input: string,
     messages: ChatMessage[],
@@ -25,6 +24,13 @@ function newId() {
   return String(Date.now()) + Math.random().toString(16).slice(2);
 }
 
+/**
+ * Stateful chat container that streams tokens from the backend by default.
+ *
+ * @remarks If `onSend` is provided, the component delegates sending to it and skips SSE.
+ * Cleans up any open streams on unmount.
+ * @public
+ */
 export default function Chat({ onSend }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);

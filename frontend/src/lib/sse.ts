@@ -1,7 +1,17 @@
+/**
+ * Options for {@link openSSE}.
+ *
+ * @remarks Callbacks are optional; absent handlers are simply skipped.
+ * @public
+ */
 export type OpenSSEOptions = {
+  /** Querystring parameters appended to the URL. */
   params?: Record<string, string | undefined | null>;
+  /** Called once the connection is opened. */
   onOpen?: () => void;
+  /** Receives each streamed token chunk. */
   onToken?: (chunk: string) => void;
+  /** Called at end with streaming metrics (or `null` on error). */
   onDone?: (
     metrics: {
       session_id?: string | null;
@@ -9,18 +19,21 @@ export type OpenSSEOptions = {
       elapsed_ms: number;
     } | null,
   ) => void;
+  /** Receives backend-emitted SSE error messages. */
   onServerErrorEvent?: (message: string) => void;
+  /** Called when the browser reports a transport error. */
   onNetworkError?: (ev: Event) => void;
+  /** Always called when the stream is closed. */
   onClose?: (ev?: Event) => void;
+  /** Enables verbose console logs for diagnostics. */
   debug?: boolean;
 };
 
 /**
- * Open an EventSource to the given URL and wire up handlers.
- * Close semantics:
- * - Manual close(): ignore subsequent server-error events (tests expect 0 calls).
- * - Auto close triggered by a server-error: keep delivering subsequent server-error events
- *   but call es.close() only once (idempotent). This matches the tests that expect 2 calls.
+ * Open a browser `EventSource` to a chat stream and wire typed callbacks.
+ *
+ * @returns An object with the underlying `EventSource` and an idempotent `close()` helper.
+ * @public
  */
 export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
   const {
@@ -131,4 +144,5 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
   return { es, close: publicClose };
 }
 
+/** Public return type of {@link openSSE}. */
 export type OpenSSEReturn = ReturnType<typeof openSSE>;

@@ -1,6 +1,12 @@
 import Chat from "@/components/chat/Chat";
 import ThemeToggle from "@/components/theme-toggle";
 
+/**
+ * Application surface that renders the header and the chat experience.
+ *
+ * @remarks Keeps the UI minimal and delegates conversation logic to {@link Chat}.
+ * @public
+ */
 export default function App() {
   return (
     <div className="min-h-dvh">

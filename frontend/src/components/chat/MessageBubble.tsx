@@ -1,8 +1,15 @@
 import { Bot, User } from "lucide-react";
 import type { ChatMessage } from "@/types/chat";
 
+/** Props for {@link MessageBubble}. */
 type Props = { message: ChatMessage };
 
+/**
+ * Chat message bubble with role-aware styling.
+ *
+ * @remarks Renders user vs assistant messages differently and supports an error state.
+ * @public
+ */
 export default function MessageBubble({ message }: Props) {
   const isUser = message.role === "user";
   const base =
