@@ -2,8 +2,6 @@ import { describe, it, vi, beforeAll, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import App from "@/App";
 
-// jsdom ortamında window.matchMedia yok → ThemeToggle patlıyor.
-// Burada basit bir mock ekliyoruz.
 beforeAll(() => {
   if (!window.matchMedia) {
     Object.defineProperty(window, "matchMedia", {
@@ -12,7 +10,7 @@ beforeAll(() => {
         matches: false,
         media: query,
         onchange: null,
-        addListener: vi.fn(), // deprecated
+        addListener: vi.fn(),
         removeListener: vi.fn(),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
@@ -32,7 +30,6 @@ describe("App", () => {
     });
     const input = screen.getByPlaceholderText("Type your message…");
 
-    // Jest-DOM kullanmadan basit doğrulamalar
     expect(title).toBeDefined();
     expect(themeSwitch).toBeDefined();
     expect(input).toBeDefined();

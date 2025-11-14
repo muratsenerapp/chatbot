@@ -72,8 +72,6 @@ describe("InputBar", () => {
     expect(handleAbort).toHaveBeenCalledTimes(1);
   });
 
-  // Not: Şu anki implementasyonda disabled prop'u Enter ile submit'i engellemiyor.
-  // Bu test mevcut davranışı belgeliyor; ileride değiştirirsen hem kodu hem testi güncellersin.
   it("still submits on Enter even when disabled prop is true (current behavior)", () => {
     const handleSubmit = vi.fn();
 

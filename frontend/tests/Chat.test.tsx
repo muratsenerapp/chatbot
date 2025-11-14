@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import Chat from "@components/chat/Chat";
 
-// jsdom'da scrollIntoView yok → Chat içindeki auto-scroll effect'i patlatıyor.
-// Tüm testler için global bir noop fonksiyon ekliyoruz.
 if (!(window.HTMLElement.prototype as any).scrollIntoView) {
   Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
     value: vi.fn(),
@@ -16,7 +14,6 @@ let lastSSEOptions: any;
 let lastCloseFn: any;
 let lastSSEUrl: string | undefined;
 
-// SSE helper'ını mock'luyoruz; parametreleri ve close() çağrılarını izleyebilmek için.
 vi.mock("@/lib/sse", () => {
   return {
     openSSE: (url: string, opts: any) => {
@@ -64,13 +61,11 @@ describe("Chat", () => {
       charCode: 13,
     });
 
-    // Kullanıcı mesajı DOM'da
     await screen.findByText("Hello");
 
     expect(onSend).toHaveBeenCalledTimes(1);
     expect(onSend.mock.calls[0][0]).toBe("Hello");
 
-    // Assistant cevabı eklendi
     await screen.findByText("Mock reply");
   });
 
@@ -95,7 +90,7 @@ describe("Chat", () => {
   });
 
   it("streams assistant reply via SSE and stops streaming on onDone", async () => {
-    render(<Chat />); // onSend yok → backend SSE yolunu kullanır
+    render(<Chat />);
 
     const input = screen.getByPlaceholderText("Type your message…");
 
@@ -119,7 +114,6 @@ describe("Chat", () => {
       expect(lastSSEOptions.params.message).toBe("stream this");
     }
 
-    // Token akışını simüle et
     act(() => {
       lastSSEOptions?.onToken?.("Hello ");
       lastSSEOptions?.onToken?.("world");
@@ -127,7 +121,6 @@ describe("Chat", () => {
 
     await screen.findByText("Hello world");
 
-    // onDone çağrısı → streaming biter
     act(() => {
       lastSSEOptions?.onDone?.({ session_id: "session-1" });
     });

@@ -9,7 +9,7 @@ function mockMatchMedia(matches: boolean) {
       matches,
       media: query,
       onchange: null,
-      addListener: vi.fn(), // deprecated but sometimes used
+      addListener: vi.fn(),
       removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -38,7 +38,6 @@ function expectTheme(isDark: boolean) {
 }
 
 beforeEach(() => {
-  // Reset DOM + mocks before every test
   document.documentElement.className = "";
   localStorage.clear();
   vi.resetAllMocks();
@@ -46,7 +45,7 @@ beforeEach(() => {
 
 describe("ThemeToggle", () => {
   it("uses system dark preference when no stored theme exists", () => {
-    mockMatchMedia(true); // system prefers dark
+    mockMatchMedia(true);
 
     render(<ThemeToggle />);
 
@@ -55,7 +54,7 @@ describe("ThemeToggle", () => {
 
   it("prefers stored theme over system preference", () => {
     localStorage.setItem("theme", "light");
-    mockMatchMedia(true); // even if system prefers dark
+    mockMatchMedia(true);
 
     render(<ThemeToggle />);
 
@@ -68,16 +67,13 @@ describe("ThemeToggle", () => {
 
     render(<ThemeToggle />);
 
-    // Initially light
     expectTheme(false);
 
-    // Toggle to dark
     const btn = getSwitch();
     fireEvent.click(btn);
 
     expectTheme(true);
 
-    // Toggle back to light
     fireEvent.click(btn);
 
     expectTheme(false);

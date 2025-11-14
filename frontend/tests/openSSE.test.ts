@@ -4,7 +4,6 @@ import { openSSE } from "@lib/sse";
 const instances: EventSource[] = [];
 const BaseES = globalThis.EventSource as any;
 
-// Her testten önce EventSource'u mock'la ve oluşturulan instance'ları kaydet.
 beforeEach(() => {
   instances.length = 0;
 
@@ -38,15 +37,13 @@ describe("openSSE event semantics", () => {
         b: null,
         c: undefined,
       },
-      debug: true, // debug branch'lerini de yürütelim
+      debug: true,
     });
 
     const es: any = getES();
     const url = new URL(es.url, window.location.origin);
 
-    // a set edilmeli
     expect(url.searchParams.get("a")).toBe("1");
-    // b ve c hiç querystring'e eklenmemeli
     expect(url.searchParams.has("b")).toBe(false);
     expect(url.searchParams.has("c")).toBe(false);
   });
@@ -63,13 +60,11 @@ describe("openSSE event semantics", () => {
 
     const es: any = getES();
 
-    // token event'leri → onToken çağrılmalı
     es.dispatchEvent(new MessageEvent("token", { data: "Hel" }));
     es.dispatchEvent(new MessageEvent("token", { data: "lo" }));
 
     expect(chunks).toEqual(["Hel", "lo"]);
 
-    // Manual close sonrası gelen token'lar yok sayılmalı
     close();
 
     es.dispatchEvent(new MessageEvent("token", { data: " ignored" }));
@@ -95,7 +90,6 @@ describe("openSSE event semantics", () => {
       elapsed_ms: 1234,
     };
 
-    // done event → JSON parse başarı yolu
     es.dispatchEvent(
       new MessageEvent("done", {
         data: JSON.stringify(metrics),
@@ -146,7 +140,6 @@ describe("openSSE event semantics", () => {
 
     const errorEvent = new Event("error");
 
-    // onerror handler'ını doğrudan tetikliyoruz
     if (typeof es.onerror === "function") {
       es.onerror(errorEvent);
     } else {
@@ -175,10 +168,8 @@ describe("openSSE event semantics", () => {
     const es: any = getES();
     const closeSpy = vi.spyOn(es, "close");
 
-    // Önce manuel olarak kapat
     close();
 
-    // Sonra network error oluştur
     const errorEvent = new Event("error");
     if (typeof es.onerror === "function") {
       es.onerror(errorEvent);
@@ -186,11 +177,9 @@ describe("openSSE event semantics", () => {
       es.dispatchEvent(errorEvent);
     }
 
-    // Manuel kapatma sırasında bir kez close/onClose çağrılmış olmalı
     expect(closeCalls).toBe(1);
     expect(closeSpy).toHaveBeenCalledTimes(1);
 
-    // Kapandıktan sonra gelen network error'lar callback'leri tetiklememeli
     expect(networkErrors).toBe(0);
   });
 });
