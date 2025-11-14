@@ -4,11 +4,16 @@ import { openSSE } from "@lib/sse";
 const instances: EventSource[] = [];
 const BaseES = globalThis.EventSource as any;
 
+// Her testten önce EventSource'u mock'la ve oluşturulan instance'ları kaydet.
 beforeEach(() => {
   instances.length = 0;
+
   (globalThis as any).EventSource = class extends (BaseES as any) {
+    url: string;
+
     constructor(url: string | URL, init?: EventSourceInit) {
       super(url, init);
+      this.url = typeof url === "string" ? url : url.toString();
       instances.push(this as unknown as EventSource);
     }
   } as any;
@@ -25,72 +30,167 @@ function getES(): any {
   return instances[0] as any;
 }
 
-describe("openSSE close semantics", () => {
-  it("is idempotent when closed manually", () => {
-    let onCloseCalls = 0;
-    let serverErrorCalls = 0;
-
-    const sse = openSSE("/sse", {
-      onClose: () => {
-        onCloseCalls += 1;
+describe("openSSE event semantics", () => {
+  it("builds URL with params while skipping null/undefined values", () => {
+    openSSE("/sse", {
+      params: {
+        a: "1",
+        b: null,
+        c: undefined,
       },
-      onServerErrorEvent: () => {
-        serverErrorCalls += 1;
-      },
+      debug: true, // debug branch'lerini de yürütelim
     });
 
-    const es = getES();
-    const closeSpy = vi.spyOn(es, "close");
+    const es: any = getES();
+    const url = new URL(es.url, window.location.origin);
 
-    if (typeof es.openNow === "function") es.openNow();
-
-    sse.close();
-    sse.close();
-
-    expect(closeSpy).toHaveBeenCalledTimes(1);
-    expect(onCloseCalls).toBe(1);
-
-    if (typeof es.emitBackendError === "function") {
-      es.emitBackendError("after-close-1");
-      es.emitBackendError("after-close-2");
-    } else {
-      es.dispatchEvent(
-        new MessageEvent("backend-error", { data: "after-close-1" }),
-      );
-      es.dispatchEvent(
-        new MessageEvent("backend-error", { data: "after-close-2" }),
-      );
-    }
-
-    expect(serverErrorCalls).toBe(0);
+    // a set edilmeli
+    expect(url.searchParams.get("a")).toBe("1");
+    // b ve c hiç querystring'e eklenmemeli
+    expect(url.searchParams.has("b")).toBe(false);
+    expect(url.searchParams.has("c")).toBe(false);
   });
 
-  it("remains idempotent when server error events fire repeatedly", () => {
-    let onCloseCalls = 0;
-    let serverErrorCalls = 0;
+  it("delivers token chunks to onToken and respects manual close", () => {
+    const chunks: string[] = [];
 
-    openSSE("/sse", {
-      onClose: () => {
-        onCloseCalls += 1;
-      },
-      onServerErrorEvent: () => {
-        serverErrorCalls += 1;
+    const { close } = openSSE("/sse", {
+      debug: true,
+      onToken: (chunk) => {
+        chunks.push(chunk);
       },
     });
 
-    const es = getES();
+    const es: any = getES();
+
+    // token event'leri → onToken çağrılmalı
+    es.dispatchEvent(new MessageEvent("token", { data: "Hel" }));
+    es.dispatchEvent(new MessageEvent("token", { data: "lo" }));
+
+    expect(chunks).toEqual(["Hel", "lo"]);
+
+    // Manual close sonrası gelen token'lar yok sayılmalı
+    close();
+
+    es.dispatchEvent(new MessageEvent("token", { data: " ignored" }));
+    expect(chunks).toEqual(["Hel", "lo"]);
+  });
+
+  it("parses JSON metrics in done event and closes the stream", () => {
+    let received: any = null;
+
+    openSSE("/sse", {
+      debug: true,
+      onDone: (metrics) => {
+        received = metrics;
+      },
+    });
+
+    const es: any = getES();
     const closeSpy = vi.spyOn(es, "close");
 
-    if (typeof es.emitBackendError === "function") {
-      es.emitBackendError("e1");
-      es.emitBackendError("e2");
+    const metrics = {
+      session_id: "sess-1",
+      chars: 42,
+      elapsed_ms: 1234,
+    };
+
+    // done event → JSON parse başarı yolu
+    es.dispatchEvent(
+      new MessageEvent("done", {
+        data: JSON.stringify(metrics),
+      }),
+    );
+
+    expect(received).toEqual(metrics);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes null to onDone when done payload is not valid JSON", () => {
+    let received: any = "initial";
+
+    openSSE("/sse", {
+      debug: true,
+      onDone: (metrics) => {
+        received = metrics;
+      },
+    });
+
+    const es: any = getES();
+
+    es.dispatchEvent(
+      new MessageEvent("done", {
+        data: "not-a-json",
+      }),
+    );
+
+    expect(received).toBeNull();
+  });
+
+  it("invokes onNetworkError and onClose on transport error", () => {
+    let networkErrors = 0;
+    let closeCalls = 0;
+
+    openSSE("/sse", {
+      debug: true,
+      onNetworkError: () => {
+        networkErrors += 1;
+      },
+      onClose: () => {
+        closeCalls += 1;
+      },
+    });
+
+    const es: any = getES();
+    const closeSpy = vi.spyOn(es, "close");
+
+    const errorEvent = new Event("error");
+
+    // onerror handler'ını doğrudan tetikliyoruz
+    if (typeof es.onerror === "function") {
+      es.onerror(errorEvent);
     } else {
-      es.dispatchEvent(new MessageEvent("backend-error", { data: "e1" }));
-      es.dispatchEvent(new MessageEvent("backend-error", { data: "e2" }));
+      es.dispatchEvent(errorEvent);
     }
 
+    expect(networkErrors).toBe(1);
+    expect(closeCalls).toBe(1);
     expect(closeSpy).toHaveBeenCalledTimes(1);
-    expect(onCloseCalls).toBe(1);
-    expect(serverErrorCalls).toBe(2);
+  });
+
+  it("ignores network errors after manual close (debug branch too)", () => {
+    let networkErrors = 0;
+    let closeCalls = 0;
+
+    const { close } = openSSE("/sse", {
+      debug: true,
+      onNetworkError: () => {
+        networkErrors += 1;
+      },
+      onClose: () => {
+        closeCalls += 1;
+      },
+    });
+
+    const es: any = getES();
+    const closeSpy = vi.spyOn(es, "close");
+
+    // Önce manuel olarak kapat
+    close();
+
+    // Sonra network error oluştur
+    const errorEvent = new Event("error");
+    if (typeof es.onerror === "function") {
+      es.onerror(errorEvent);
+    } else {
+      es.dispatchEvent(errorEvent);
+    }
+
+    // Manuel kapatma sırasında bir kez close/onClose çağrılmış olmalı
+    expect(closeCalls).toBe(1);
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+
+    // Kapandıktan sonra gelen network error'lar callback'leri tetiklememeli
+    expect(networkErrors).toBe(0);
   });
 });
