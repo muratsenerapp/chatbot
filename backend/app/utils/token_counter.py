@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from langchain_core.messages import BaseMessage
+
 # We avoid extra heavy deps. This is a heuristic:
 # For Latin-script languages (incl. Turkish/English), ~4 chars per token is a
 # reasonable approximation for monitoring/logging purposes.
-CHAR_PER_TOKEN = 4
+CHARS_PER_TOKEN = 4
 
 
 def estimate_tokens_from_text(text: str) -> int:
@@ -25,7 +27,7 @@ def estimate_tokens_from_text(text: str) -> int:
     """
     if not text:
         return 0
-    return max(1, len(text) // CHAR_PER_TOKEN)
+    return max(1, len(text) // CHARS_PER_TOKEN)
 
 
 def estimate_tokens_from_iter(texts: Iterable[str]) -> int:
@@ -41,3 +43,8 @@ def estimate_tokens_from_iter(texts: Iterable[str]) -> int:
     for t in texts:
         total += estimate_tokens_from_text(t)
     return total
+
+
+def estimate_tokens_from_messages(messages: list[BaseMessage]) -> int:
+    """Estimate tokens from LangChain messages."""
+    return sum(len(msg.content) for msg in messages) // CHARS_PER_TOKEN

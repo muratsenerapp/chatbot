@@ -24,7 +24,7 @@ class Settings(BaseSettings):
         OLLAMA_NUM_CTX: Context window size (input tokens).
         OLLAMA_NUM_PREDICT: Max tokens to generate.
         OLLAMA_SEED: Optional deterministic seed for reproducibility.
-        OLLAMA_STOP: Stop sequences; can be comma-separated or JSON array in env.
+        OLLAMA_STOP: Stop sequences; can be a comma-separated or JSON array in env.
         OLLAMA_MIROSTAT: Mirostat mode (0/1/2) if enabled.
         OLLAMA_MIROSTAT_TAU: Target surprise parameter for Mirostat.
         OLLAMA_MIROSTAT_ETA: Learning rate parameter for Mirostat.

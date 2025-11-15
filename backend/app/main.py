@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import register_routers
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger, setup_logging
-from app.services.llm_client import LLMClient, DEFAULT_SYSTEM_PROMPT
+from app.services.llm import LLMClient, DEFAULT_SYSTEM_PROMPT
 from app.services.memory import SessionMemory
 
 
@@ -85,7 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     Args:
         settings: Optional configuration to use. When ``None``, loads from
-            environment via :func:`get_settings`. Supplying a value eases tests.
+             the environment via :func:`get_settings`. Supplying a value eases tests.
 
     Returns:
         FastAPI: Configured application instance.

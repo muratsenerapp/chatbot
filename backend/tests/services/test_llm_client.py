@@ -1,6 +1,6 @@
 import pytest
 from langchain_core.messages import AIMessageChunk
-from app.services.llm_client import LLMClient
+from app.services.llm import LLMClient
 
 
 class FakeStreamModel:
