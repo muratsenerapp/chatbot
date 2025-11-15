@@ -23,5 +23,18 @@ export default defineConfig({
     environmentOptions: { jsdom: { url: "http://localhost/" } },
     setupFiles: "./tests/setup.ts",
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+
+    coverage: {
+      enabled: true,
+      provider: "v8",
+      reporter: ["text", "lcov", "html"],
+      reportsDirectory: "./coverage",
+      thresholds: {
+        lines: 70,
+        functions: 70,
+        branches: 70,
+        statements: 70,
+      },
+    },
   },
 });
