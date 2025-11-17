@@ -9,6 +9,11 @@ from app.services.memory import SessionMemory
 from app.utils.token_counter import estimate_tokens_from_messages
 from app.core.logging import get_logger
 
+INPUT_WARNING_THRESHOLD = 0.8
+TOTAL_WARNING_THRESHOLD = 0.9
+DEFAULT_CONTEXT_WINDOW = 4096
+DEFAULT_MAX_PREDICT = 512
+
 logger = get_logger(__name__)
 
 
@@ -159,10 +164,6 @@ class ChatService:
             session_id=session_id, total_chars=char_count, metrics=metrics
         )
 
-    # ========================================
-    # PRIVATE: Extracted helper methods (DRY)
-    # ========================================
-
     def _prepare_messages(
         self,
         message: str,
@@ -197,7 +198,7 @@ class ChatService:
         num_ctx, num_predict = self._get_context_settings()
 
         # Log warning if near the context limit
-        if input_tokens > int(0.8 * num_ctx):
+        if input_tokens > int(INPUT_WARNING_THRESHOLD * num_ctx):
             logger.warning(
                 f"Input near limit: {input_tokens}/{num_ctx} tokens (session={session_id})"
             )
@@ -224,11 +225,11 @@ class ChatService:
         """Get context window settings from the LLM client."""
         try:
             model_kwargs = getattr(self.llm_client.llm, "model_kwargs", {})
-            num_ctx = model_kwargs.get("num_ctx", 4096)
-            num_predict = model_kwargs.get("num_predict", 512)
+            num_ctx = model_kwargs.get("num_ctx", DEFAULT_CONTEXT_WINDOW)
+            num_predict = model_kwargs.get("num_predict", DEFAULT_MAX_PREDICT)
         except AttributeError:
             # LLM client doesn't have expected attributes
-            num_ctx, num_predict = 4096, 512
+            num_ctx, num_predict = DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_PREDICT
 
         return num_ctx, num_predict
 
@@ -246,7 +247,9 @@ class ChatService:
             [HumanMessage(content=response_text)]
         )
         total_tokens = input_tokens + output_tokens
-        is_near_limit = total_tokens > int(0.9 * (num_ctx + num_predict))
+        is_near_limit = total_tokens > int(
+            TOTAL_WARNING_THRESHOLD * (num_ctx + num_predict)
+        )
 
         return ChatMetrics(
             input_tokens=input_tokens,
