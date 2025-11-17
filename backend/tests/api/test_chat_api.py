@@ -6,6 +6,7 @@ import json
 from contextlib import contextmanager
 
 from fastapi.testclient import TestClient
+from httpx import ConnectError
 from langchain_core.messages import AIMessageChunk
 
 from app.main import app
@@ -32,16 +33,44 @@ class FakeOKClient:
 
 
 class FakeFailClient:
-    """Client that fails to simulate backend errors."""
+    """Client that fails with a generic backend error (maps to HTTP 500)."""
 
     system_prompt = "SYS"
 
     async def astream_chat(self, messages):
-        # rise during first iteration
+        # Async generator that fails on first iteration.
+        yield "partial"
         raise RuntimeError("boom")
 
     async def ainvoke(self, messages):
-        raise ValueError("fail")
+        # Generic backend failure
+        raise RuntimeError("fail")
+
+
+class FakeValidationErrorClient:
+    """Client that raises ValueError to simulate validation-like errors (400)."""
+
+    system_prompt = "SYS"
+
+    async def astream_chat(self, messages):
+        yield "partial"
+        raise ValueError("invalid")
+
+    async def ainvoke(self, messages):
+        raise ValueError("invalid")
+
+
+class FakeUnavailableClient:
+    """Client that simulates LLM connectivity issues (503)."""
+
+    system_prompt = "SYS"
+
+    async def astream_chat(self, messages):
+        yield "partial"
+        raise ConnectError("llm unavailable")
+
+    async def ainvoke(self, messages):
+        raise ConnectError("llm unavailable")
 
 
 @contextmanager
@@ -82,11 +111,27 @@ def test_chat_sync_422_validation_missing_message():
 
 
 def test_chat_sync_500_on_exception():
-    """Test 500 error when backend fails."""
+    """Test 500 error when backend fails with an unexpected exception."""
     with override_chat_service(FakeFailClient()):
         c = TestClient(app)
         r = c.post("/api/chat", json={"message": "ping"})
         assert r.status_code == 500
+
+
+def test_chat_sync_400_on_value_error():
+    """Test 400 error when service raises ValueError (treated as validation)."""
+    with override_chat_service(FakeValidationErrorClient()):
+        c = TestClient(app)
+        r = c.post("/api/chat", json={"message": "ping"})
+        assert r.status_code == 400
+
+
+def test_chat_sync_503_on_llm_unavailable():
+    """Test 503 error when LLM client is unavailable (ConnectError)."""
+    with override_chat_service(FakeUnavailableClient()):
+        c = TestClient(app)
+        r = c.post("/api/chat", json={"message": "ping"})
+        assert r.status_code == 503
 
 
 def test_chat_stream_get_200_sse_and_done_metrics():

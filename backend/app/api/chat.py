@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
+from app.api.exceptions import handle_chat_error, format_stream_error
 from app.core.logging import get_logger
 from app.schemas.chat import ChatIn, ChatOut
 from app.services.chat import ChatService, StreamChunk, StreamComplete
@@ -87,8 +88,7 @@ async def chat_sync(
         return ChatOut(content=response, session_id=sid)
 
     except Exception as e:
-        logger.exception(f"chat:error sid={sid}")
-        raise HTTPException(status_code=500, detail="Internal server error") from e
+        raise handle_chat_error(e, sid, endpoint="/api/chat", method="POST") from e
 
 
 @router.get(
@@ -142,8 +142,7 @@ async def chat_stream_get(
                     yield {"event": "done", "data": json.dumps(metrics)}
 
         except Exception as e:
-            # Error handling
-            logger.exception(f"stream:error sid={sid}")
-            yield {"event": "backend-error", "data": str(e)}
+            error_data = format_stream_error(e, sid, endpoint="/api/chat/stream")
+            yield {"event": "backend-error", "data": json.dumps(error_data)}
 
     return EventSourceResponse(token_gen())
