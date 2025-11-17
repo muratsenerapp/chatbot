@@ -1,3 +1,9 @@
+"""Chat service providing message processing, streaming, and conversation management.
+
+Coordinates LLM invocation, session memory, token counting, and metrics collection
+for both single-shot and streaming chat interactions.
+"""
+
 from dataclasses import dataclass
 from typing import Optional, AsyncGenerator
 import time
@@ -19,7 +25,15 @@ logger = get_logger(__name__)
 
 @dataclass
 class ChatMetrics:
-    """Metrics from chat processing."""
+    """Metrics from chat processing.
+
+    Attributes:
+        input_tokens: Estimated number of input tokens.
+        output_tokens: Estimated number of output tokens.
+        total_tokens: Sum of input and output tokens.
+        elapsed_ms: Processing time in milliseconds.
+        is_near_limit: Whether total tokens approach context/prediction limits.
+    """
 
     input_tokens: int
     output_tokens: int
@@ -30,7 +44,12 @@ class ChatMetrics:
 
 @dataclass
 class StreamChunk:
-    """Single chunk from streaming response."""
+    """Single chunk from streaming response.
+
+    Attributes:
+        token: Text content of the chunk.
+        char_count: Cumulative character count up to this chunk.
+    """
 
     token: str
     char_count: int
@@ -38,7 +57,13 @@ class StreamChunk:
 
 @dataclass
 class StreamComplete:
-    """Stream completion metadata."""
+    """Stream completion metadata.
+
+    Attributes:
+        session_id: Session identifier for the completed stream.
+        total_chars: Total character count in the complete response.
+        metrics: Processing metrics including token counts and timing.
+    """
 
     session_id: str
     total_chars: int
@@ -61,6 +86,12 @@ class ChatService:
         llm_client: LLMClient,
         memory: SessionMemory,
     ):
+        """Initialize the chat service with LLM client and memory.
+
+        Args:
+            llm_client: Client for LLM invocation and streaming.
+            memory: Session-scoped message storage.
+        """
         self.llm_client = llm_client
         self.memory = memory
 
@@ -70,24 +101,28 @@ class ChatService:
         session_id: str,
         explicit_messages: Optional[list[BaseMessage]] = None,
     ) -> tuple[str, ChatMetrics]:
-        """Process a chat message and return a full response with metrics."""
+        """Process a chat message and return a full response with metrics.
+
+        Args:
+            message: User input text.
+            session_id: Session identifier for conversation context.
+            explicit_messages: Optional pre-built message list to override session memory.
+
+        Returns:
+            Tuple of (assistant response text, processing metrics).
+        """
         start = time.perf_counter()
 
-        # Prepare messages - EXTRACTED
         model_messages = self._prepare_messages(message, session_id, explicit_messages)
 
-        # Calculate and validate - EXTRACTED
         input_tokens, num_ctx, num_predict = self._calculate_and_validate_input(
             model_messages, session_id
         )
 
-        # Invoke LLM
         response = await self.llm_client.ainvoke(model_messages)
 
-        # Update memory - EXTRACTED
         self._update_memory_if_needed(session_id, message, response, explicit_messages)
 
-        # Calculate metrics - EXTRACTED
         metrics = self._calculate_metrics(
             input_tokens, response, num_ctx, num_predict, start
         )
@@ -109,21 +144,23 @@ class ChatService:
         """
         Process a chat message and stream response tokens.
 
+        Args:
+            message: User input text.
+            session_id: Session identifier for conversation context.
+            explicit_messages: Optional pre-built message list to override session memory.
+
         Yields:
-            StreamChunk: For each token
-            StreamComplete: Final metadata when done
+            StreamChunk: For each token with cumulative character count.
+            StreamComplete: Final metadata when done including metrics.
         """
         start = time.perf_counter()
 
-        # Prepare messages - REUSED
         model_messages = self._prepare_messages(message, session_id, explicit_messages)
 
-        # Calculate and validate - REUSED
         input_tokens, num_ctx, num_predict = self._calculate_and_validate_input(
             model_messages, session_id
         )
 
-        # Stream from LLM
         char_count = 0
         assistant_text_parts: list[str] = []
 
@@ -134,16 +171,12 @@ class ChatService:
             char_count += len(chunk)
             assistant_text_parts.append(chunk)
 
-            # Yield token chunk
             yield StreamChunk(token=chunk, char_count=char_count)
 
-        # Complete response
         full_text = "".join(assistant_text_parts)
 
-        # Update memory - REUSED
         self._update_memory_if_needed(session_id, message, full_text, explicit_messages)
 
-        # Calculate metrics - REUSED
         metrics = self._calculate_metrics(
             input_tokens, full_text, num_ctx, num_predict, start
         )
@@ -159,7 +192,6 @@ class ChatService:
                 f"Total tokens near limit: {metrics.total_tokens} (session={session_id})"
             )
 
-        # Yield completion metadata
         yield StreamComplete(
             session_id=session_id, total_chars=char_count, metrics=metrics
         )
@@ -197,7 +229,6 @@ class ChatService:
         input_tokens = estimate_tokens_from_messages(model_messages)
         num_ctx, num_predict = self._get_context_settings()
 
-        # Log warning if near the context limit
         if input_tokens > int(INPUT_WARNING_THRESHOLD * num_ctx):
             logger.warning(
                 f"Input near limit: {input_tokens}/{num_ctx} tokens (session={session_id})"

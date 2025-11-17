@@ -46,5 +46,12 @@ def estimate_tokens_from_iter(texts: Iterable[str]) -> int:
 
 
 def estimate_tokens_from_messages(messages: list[BaseMessage]) -> int:
-    """Estimate tokens from LangChain messages."""
+    """Estimate tokens from LangChain messages.
+
+    Args:
+        messages: List of LangChain BaseMessage objects to estimate.
+
+    Returns:
+        Approximate total token count across all message contents.
+    """
     return sum(len(msg.content) for msg in messages) // CHARS_PER_TOKEN

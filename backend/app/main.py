@@ -31,7 +31,6 @@ def create_lifespan(settings: Settings):
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Initialize global state
         setup_logging(level=settings.LOG_LEVEL)
         logger = get_logger("app")
         logger.info("Starting application")
@@ -101,7 +100,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=create_lifespan(settings),
     )
 
-    # CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOW_ORIGINS,

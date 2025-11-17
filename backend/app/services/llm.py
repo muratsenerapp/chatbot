@@ -59,8 +59,19 @@ class LLMClient:
         """
         Initialize a ChatOllama-backed client with a consistent system prompt.
 
-        If an ``llm`` is provided, it is used directly (handy for tests).
-        Otherwise a streaming-capable ChatOllama client is constructed.
+        Uses an injected ``llm`` when provided (useful for tests); otherwise constructs a
+        streaming-capable network client. Additional provider options can be forwarded via
+        ``model_kwargs``.
+
+        Args:
+            base_url: Base URL of the Ollama server (e.g., ``http://localhost:11434``).
+            model: Name/tag of the model to use on the Ollama server.
+            temperature: Sampling temperature controlling randomness of outputs.
+            model_kwargs: Provider-specific generation options passed to Ollama
+                (for example, ``num_ctx``, ``num_predict``).
+            llm: Pre-initialized model object exposing ``astream``/``ainvoke``/``invoke`` to
+                bypass network setup; typically injected in tests.
+            system_prompt: Default system prompt prepended to conversations when not overridden.
         """
         self.system_prompt = system_prompt
 
@@ -121,10 +132,22 @@ class LLMClient:
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
-        """
-        Stream response text chunks as they arrive from the model.
+        """Stream response text chunks as they arrive from the model.
 
-        Yields plain text segments in arrival order.
+        Args:
+            user_messages: Either raw user turns as strings or a prebuilt list...
+            system_prompt: Per-call override for the default system prompt.
+
+        Yields:
+            str: Pieces of the assistant's textual response in arrival order.
+
+        Example:
+            client = LLMClient(base_url="http://localhost:11434", model="qwen2.5:7b-instruct")
+
+            async for token in client.astream_chat(["What's 2+2?"]):
+                print(token, end="", flush=True)
+
+            # Output: The answer is 4.
         """
         messages = self._prepare_messages(user_messages, system_prompt)
 
@@ -138,7 +161,24 @@ class LLMClient:
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: str | None = None,
     ) -> str:
-        """Return the full assistant response as a single string (async)."""
+        """Return the full response text asynchronously.
+
+        Args:
+            user_messages: Raw user turns as strings or a prebuilt list of LangChain
+                messages; when strings are provided, a system message is prepended if available.
+            system_prompt: Per-call override for the default system prompt.
+
+        Returns:
+            Full assistant response as a single string.
+
+        Example:
+            client = LLMClient(base_url="http://localhost:11434", model="qwen2.5:7b-instruct")
+
+            response = await client.ainvoke(["What's the capital of France?"])
+            print(response)
+
+            # Output: The capital of France is Paris.
+        """
         messages = self._prepare_messages(user_messages, system_prompt)
         res = await self.llm.ainvoke(messages)
         return self._to_text(res) or str(res)
@@ -148,7 +188,25 @@ class LLMClient:
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: str | None = None,
     ) -> str:
-        """Return the full assistant response as a single string (sync)."""
+        """
+        Return the full response text synchronously.
+
+        Args:
+            user_messages: Raw user turns as strings or a prebuilt list of LangChain
+                messages; when strings are provided, a system message is prepended if available.
+            system_prompt: Per-call override for the default system prompt.
+
+        Returns:
+            Full assistant response as a single string.
+
+        Example:
+            client = LLMClient(base_url="http://localhost:11434", model="qwen2.5:7b-instruct")
+
+            response = client.invoke(["Tell me a joke"])
+            print(response)
+
+            # Output: Why did the chicken cross the road? To get to the other side!
+        """
         messages = self._prepare_messages(user_messages, system_prompt)
         res = self.llm.invoke(messages)
         return self._to_text(res) or str(res)

@@ -25,9 +25,19 @@ def get_chat_service(
     """
     Get or create a ChatService instance.
 
-    The service is created lazily on first access and cached in app.state.
+    The service is created lazily on first access and cached in app.state
+    to avoid repeated initialization.
+
+    Args:
+        request: FastAPI request providing access to app state.
+
+    Returns:
+        ChatService instance ready for processing chat requests.
+
+    Raises:
+        RuntimeError: If application dependencies (llm_client, session_memory)
+            are not initialized in app.state.
     """
-    # Try to get from app.state
     service = getattr(request.app.state, "chat_service", None)
 
     if service is None:
@@ -67,7 +77,19 @@ async def chat_sync(
     data: ChatIn,
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ChatOut:
-    """Single-shot chat completion."""
+    """Single-shot chat completion.
+
+    Args:
+        data: Chat request containing user message and optional session/messages.
+        chat_service: Injected ChatService dependency.
+
+    Returns:
+        ChatOut containing assistant response and session ID.
+
+    Raises:
+        HTTPException: 503 if LLM service is unavailable, 400 for invalid
+            input payloads, or 500 for unexpected errors.
+    """
     sid = ensure_session_id(data.session_id)
 
     try:
@@ -115,8 +137,16 @@ async def chat_stream_get(
 
     Events: `token` (string chunk), `done` (JSON metrics), `backend-error` (string message).
     Errors are signaled via SSE events instead of HTTP errors to preserve the
-    stream (per SSE semantics), so this handler does not rise on model/runtime
+    stream (per SSE semantics), so this handler does not raise on model/runtime
     failures.
+
+    Args:
+        message: User input text (query parameter).
+        session_id: Optional session identifier (query parameter).
+        service: Injected ChatService dependency.
+
+    Returns:
+        EventSourceResponse streaming SSE events.
     """
     sid = ensure_session_id(session_id)
     logger.info(f"stream:start sid={sid} len={len(message)}")
