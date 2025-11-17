@@ -9,7 +9,7 @@ from app.services.memory import SessionMemory
 from app.utils.token_counter import estimate_tokens_from_messages
 from app.core.logging import get_logger
 
-logger = get_logger("services.chat")
+logger = get_logger(__name__)
 
 
 @dataclass

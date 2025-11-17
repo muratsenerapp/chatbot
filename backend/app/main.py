@@ -33,8 +33,8 @@ def create_lifespan(settings: Settings):
     async def lifespan(app: FastAPI):
         # Initialize global state
         setup_logging(level=settings.LOG_LEVEL)
-        log = get_logger("app")
-        log.info("Starting application")
+        logger = get_logger("app")
+        logger.info("Starting application")
 
         # Build LLM client with settings-driven generation controls
         model_kwargs = {
@@ -56,7 +56,7 @@ def create_lifespan(settings: Settings):
         if settings.OLLAMA_MIROSTAT_ETA is not None:
             model_kwargs["mirostat_eta"] = settings.OLLAMA_MIROSTAT_ETA
 
-        app.state.settings = settings  # type: ignore[attr-defined]
+        app.state.settings = settings
         app.state.llm_client = LLMClient(
             base_url=settings.OLLAMA_BASE_URL,
             model=settings.OLLAMA_MODEL,
@@ -65,14 +65,14 @@ def create_lifespan(settings: Settings):
             system_prompt=DEFAULT_SYSTEM_PROMPT,
         )
         # Session-scoped in-memory history
-        app.state.session_memory = SessionMemory(  # type: ignore[attr-defined]
-            default_system_prompt=app.state.llm_client.system_prompt  # type: ignore[attr-defined]
+        app.state.session_memory = SessionMemory(
+            default_system_prompt=app.state.llm_client.system_prompt
         )
 
         try:
             yield
         finally:
-            log.info("Shutting down application")
+            logger.info("Shutting down application")
 
     return lifespan
 

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request
 from app.core.logging import get_logger
 
 router = APIRouter(tags=["Health"])
-logger = get_logger("api.chat")
+logger = get_logger(__name__)
 
 
 @router.get("/health", summary="Health check endpoint")

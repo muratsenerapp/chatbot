@@ -16,7 +16,7 @@ from app.utils.chat import to_lc_messages
 from app.utils.sessions import ensure_session_id
 
 router = APIRouter(tags=["Chat"])
-logger = get_logger("api.chat")
+logger = get_logger(__name__)
 
 
 def get_chat_service(

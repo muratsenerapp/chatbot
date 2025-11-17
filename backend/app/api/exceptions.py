@@ -3,7 +3,7 @@ from httpx import ConnectError, TimeoutException
 from pydantic import ValidationError
 from app.core.logging import get_logger
 
-logger = get_logger("api.exceptions")
+logger = get_logger(__name__)
 
 
 def handle_chat_error(
