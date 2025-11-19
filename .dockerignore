@@ -1,0 +1,83 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# GitHub
+.github
+
+# Documentation
+*.md
+docs/
+LICENSE
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/*.so
+.Python
+backend/venv/
+backend/env/
+backend/.venv/
+backend/.env
+**/.pytest_cache/
+**/.coverage
+backend/.coverage-reports/
+**/*.cover
+**/*.log
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.cache/
+frontend/coverage/
+**/.npm
+**/.eslintcache
+frontend/.vite/
+
+# Testing
+**/tests/
+**/*.test.js
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.js
+**/*.spec.ts
+**/*.spec.tsx
+backend/pytest.ini
+frontend/vitest.config.ts
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+**/*.env
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Pre-commit
+.pre-commit-config.yaml
+
+# Editor config
+.editorconfig
+.tool-versions
+.python-version
+
+# Runtime
+runtime.txt
