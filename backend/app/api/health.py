@@ -2,7 +2,10 @@
 
 from fastapi import APIRouter, Request
 
+from app.core.logging import get_logger
+
 router = APIRouter(tags=["Health"])
+logger = get_logger(__name__)
 
 
 @router.get("/health", summary="Health check endpoint")
@@ -27,7 +30,7 @@ async def health_check(request: Request) -> dict:
             "service": "chatbot-backend"
         }
     """
-    request.app.state.logger.debug("Health check endpoint called.")
-    request.app.state.logger.info("Health check successful.")
+    logger.debug("Health check endpoint called.")
+    logger.info("Health check successful.")
 
     return {"status": "ok", "service": "chatbot-backend"}

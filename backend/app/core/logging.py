@@ -59,22 +59,16 @@ def setup_logging(level: str = "INFO") -> Logger:
 def get_logger(name: str | None = None) -> Logger:
     """Retrieve a child logger derived from the main project logger.
 
-    This allows modules (e.g., services, API routes) to use a contextual logger
-    under the main project namespace, ensuring consistent formatting and
-    configuration.
-
     Args:
-        name (str | None): Optional sub-name for the child logger. For example,
-            passing "services.db" creates a logger named "chatbot.services.db".
-            If None, the root "chatbot" logger is returned.
+        name (str | None): Optional sub-name for the child logger.
 
     Returns:
         Logger: A configured child logger instance.
 
     Example:
-        >>> from app.core.logging import get_logger
-        >>> logger = get_logger("services.db")
-        >>> logger.info("Database connection established")
+        from app.core.logging import get_logger
+        logger = get_logger("services.db")
+        logger.info("Database connection established")
     """
     full_name = LOGGER_NAME if not name else f"{LOGGER_NAME}.{name}"
     return logging.getLogger(full_name)

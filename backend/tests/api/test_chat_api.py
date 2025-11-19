@@ -1,13 +1,20 @@
+"""API endpoint tests for chat routes."""
+
 from __future__ import annotations
 
 import json
 from contextlib import contextmanager
 
 from fastapi.testclient import TestClient
+from httpx import ConnectError
 from langchain_core.messages import AIMessageChunk
 
 from app.main import app
-from app.api.chat import get_client
+from app.api.chat import get_chat_service
+from app.services.chat import ChatService
+from app.services.llm import LLMClient
+from app.services.memory import SessionMemory
+
 
 # ---- Fakes & overrides ---------------------------------------------------
 
@@ -26,35 +33,65 @@ class FakeOKClient:
 
 
 class FakeFailClient:
-    """Client that fails to simulate backend errors."""
+    """Client that fails with a generic backend error (maps to HTTP 500)."""
 
     system_prompt = "SYS"
 
-    # IMPORTANT: Make this an async *generator* so `async for` is valid and no warning is raised.
     async def astream_chat(self, messages):
-        # raise during first iteration
+        # Async generator that fails on first iteration.
+        yield "partial"
         raise RuntimeError("boom")
-        if False:  # pragma: no cover - sentinel yield to mark as async generator
-            yield ""  # never reached
 
     async def ainvoke(self, messages):
-        raise ValueError("fail")
+        # Generic backend failure
+        raise RuntimeError("fail")
+
+
+class FakeValidationErrorClient:
+    """Client that raises ValueError to simulate validation-like errors (400)."""
+
+    system_prompt = "SYS"
+
+    async def astream_chat(self, messages):
+        yield "partial"
+        raise ValueError("invalid")
+
+    async def ainvoke(self, messages):
+        raise ValueError("invalid")
+
+
+class FakeUnavailableClient:
+    """Client that simulates LLM connectivity issues (503)."""
+
+    system_prompt = "SYS"
+
+    async def astream_chat(self, messages):
+        yield "partial"
+        raise ConnectError("llm unavailable")
+
+    async def ainvoke(self, messages):
+        raise ConnectError("llm unavailable")
 
 
 @contextmanager
-def override_client(fake):
-    app.dependency_overrides[get_client] = lambda: fake  # type: ignore
+def override_chat_service(fake_client):
+    """Override ChatService with a fake LLM client."""
+    memory = SessionMemory(default_system_prompt="SYS")
+    service = ChatService(llm_client=fake_client, memory=memory)
+
+    app.dependency_overrides[get_chat_service] = lambda: service
     try:
         yield
     finally:
-        app.dependency_overrides.pop(get_client, None)
+        app.dependency_overrides.pop(get_chat_service, None)
 
 
 # ---- Existing API tests --------------------------------------------------
 
 
 def test_chat_sync_200_ok():
-    with override_client(FakeOKClient()):
+    """Test successful chat response."""
+    with override_chat_service(FakeOKClient()):
         c = TestClient(app)
         r = c.post(
             "/api/chat", json={"message": "Türkiye'nin başkenti?", "session_id": "t"}
@@ -66,21 +103,40 @@ def test_chat_sync_200_ok():
 
 
 def test_chat_sync_422_validation_missing_message():
-    with override_client(FakeOKClient()):
+    """Test validation error when message is missing."""
+    with override_chat_service(FakeOKClient()):
         c = TestClient(app)
         r = c.post("/api/chat", json={"session_id": "t"})  # missing message
         assert r.status_code == 422
 
 
 def test_chat_sync_500_on_exception():
-    with override_client(FakeFailClient()):
+    """Test 500 error when backend fails with an unexpected exception."""
+    with override_chat_service(FakeFailClient()):
         c = TestClient(app)
         r = c.post("/api/chat", json={"message": "ping"})
         assert r.status_code == 500
 
 
+def test_chat_sync_400_on_value_error():
+    """Test 400 error when service raises ValueError (treated as validation)."""
+    with override_chat_service(FakeValidationErrorClient()):
+        c = TestClient(app)
+        r = c.post("/api/chat", json={"message": "ping"})
+        assert r.status_code == 400
+
+
+def test_chat_sync_503_on_llm_unavailable():
+    """Test 503 error when LLM client is unavailable (ConnectError)."""
+    with override_chat_service(FakeUnavailableClient()):
+        c = TestClient(app)
+        r = c.post("/api/chat", json={"message": "ping"})
+        assert r.status_code == 503
+
+
 def test_chat_stream_get_200_sse_and_done_metrics():
-    with override_client(FakeOKClient()):
+    """Test SSE streaming with token and done events."""
+    with override_chat_service(FakeOKClient()):
         c = TestClient(app)
         with c.stream(
             "GET", "/api/chat/stream", params={"message": "hello", "session_id": "sid1"}
@@ -103,14 +159,16 @@ def test_chat_stream_get_200_sse_and_done_metrics():
 
 
 def test_chat_stream_get_422_validation_missing_message():
-    with override_client(FakeOKClient()):
+    """Test validation error when message param is missing."""
+    with override_chat_service(FakeOKClient()):
         c = TestClient(app)
         r = c.get("/api/chat/stream")  # missing ?message
         assert r.status_code == 422
 
 
 def test_chat_stream_get_backend_error_event_instead_of_500():
-    with override_client(FakeFailClient()):
+    """Test that backend errors are sent as SSE events, not HTTP 500."""
+    with override_chat_service(FakeFailClient()):
         c = TestClient(app)
         with c.stream("GET", "/api/chat/stream", params={"message": "hello"}) as resp:
             assert resp.status_code == 200
@@ -129,6 +187,8 @@ def test_chat_stream_get_backend_error_event_instead_of_500():
 
 
 class _FakeMemModel:
+    """Fake model that returns message count for testing memory."""
+
     def invoke(self, messages):
         class R:
             content = f"LEN={len(messages)}"
@@ -146,18 +206,22 @@ class _FakeMemModel:
 
 
 @contextmanager
-def override_client_with_fake_mem():
-    from app.services.llm_client import LLMClient
+def override_chat_service_with_fake_mem():
+    """Override with a fake model that returns message count."""
+    memory = SessionMemory(default_system_prompt="SYS")
+    fake_llm_client = LLMClient(llm=_FakeMemModel(), system_prompt="SYS")
+    service = ChatService(llm_client=fake_llm_client, memory=memory)
 
-    app.dependency_overrides[get_client] = lambda: LLMClient(llm=_FakeMemModel())
+    app.dependency_overrides[get_chat_service] = lambda: service
     try:
         yield
     finally:
-        app.dependency_overrides.pop(get_client, None)
+        app.dependency_overrides.pop(get_chat_service, None)
 
 
 def test_chat_memory_sync_len_increases_with_session():
-    with override_client_with_fake_mem():
+    """Test that session memory accumulates messages."""
+    with override_chat_service_with_fake_mem():
         c = TestClient(app)
         r1 = c.post("/api/chat", json={"message": "hi"})
         assert r1.status_code == 200
@@ -167,11 +231,13 @@ def test_chat_memory_sync_len_increases_with_session():
         r2 = c.post("/api/chat", json={"message": "help", "session_id": sid})
         assert r2.status_code == 200
         assert r2.json()["content"].startswith("LEN=")
+        # Should have: system + user1 + assistant1 + user2 = 4 messages
         assert int(r2.json()["content"].split("=")[1]) >= 3
 
 
 def test_chat_memory_sync_explicit_messages_override_server_memory():
-    with override_client_with_fake_mem():
+    """Test that explicit messages override session memory."""
+    with override_chat_service_with_fake_mem():
         c = TestClient(app)
         r1 = c.post("/api/chat", json={"message": "hi"})
         sid = r1.json()["session_id"]
@@ -192,7 +258,8 @@ def test_chat_memory_sync_explicit_messages_override_server_memory():
 
 
 def test_chat_stream_generates_session_and_uses_history():
-    with override_client_with_fake_mem():
+    """Test that streaming generates session and accumulates history."""
+    with override_chat_service_with_fake_mem():
         c = TestClient(app)
         with c.stream("GET", "/api/chat/stream", params={"message": "hello"}) as resp:
             assert resp.status_code == 200
@@ -204,11 +271,13 @@ def test_chat_stream_generates_session_and_uses_history():
                     metrics = json.loads(s.replace("data: ", ""))
                     new_sid = metrics.get("session_id")
                 if s.startswith("data: LEN="):
+                    # Should have system + user message
                     assert int(s.rsplit("=", 1)[1]) >= 2
                     saw_len = True
             assert saw_len
             assert new_sid
 
+        # Second request in same session
         with c.stream(
             "GET",
             "/api/chat/stream",
@@ -219,6 +288,7 @@ def test_chat_stream_generates_session_and_uses_history():
             for line in resp2.iter_lines():
                 s = line.decode() if isinstance(line, bytes) else line
                 if s.startswith("data: LEN="):
+                    # Should have accumulated: system + user1 + assistant1 + user2
                     assert int(s.rsplit("=", 1)[1]) >= 3
                     saw_len2 = True
             assert saw_len2

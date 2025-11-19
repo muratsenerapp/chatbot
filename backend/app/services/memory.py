@@ -1,7 +1,7 @@
 """Session-scoped in-memory chat history utilities.
 
 Provides a simple per-session message buffer for chat conversations.
-Not persisted and not multi-process/thread safe by design.
+Not persisted and not multiprocess/thread safe by design.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ class SessionMemory:
 
     Stores a list of LangChain messages per `session_id`. This is a
     process-local helper for simple prototypes and testing; it does not persist
-    data and is not multi-process/thread safe.
+    data and is not multiprocess/thread safe.
     """
 
     def __init__(self, default_system_prompt: Optional[str] = None) -> None:
