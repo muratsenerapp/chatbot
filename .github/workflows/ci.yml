@@ -59,7 +59,10 @@ jobs:
                  --cov-report=term-missing \
                  --cov-report=xml:.coverage-reports/backend/coverage.xml \
                  --cov-report=html:.coverage-reports/backend/html \
-                 --cov-fail-under=70
+                 --cov-fail-under=70 \
+          && pwd \
+          && ls -la \
+          && ls -R .coverage-reports || true
 
       - name: Security audit with pip-audit
         run: |
@@ -72,7 +75,7 @@ jobs:
         if: always()
         with:
           name: backend-coverage
-          path: .coverage-reports/
+          path: backend/.coverage-reports/
           retention-days: 30
 
   # Frontend: Lint, Test, Coverage, Security
