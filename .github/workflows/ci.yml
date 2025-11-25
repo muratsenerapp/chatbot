@@ -57,23 +57,24 @@ jobs:
         run: |
           pytest --cov=app \
                  --cov-report=term-missing \
-                 --cov-report=xml:.coverage-reports/backend/coverage.xml \
-                 --cov-report=html:.coverage-reports/backend/html \
-                 --cov-fail-under=70
-
-      - name: Security audit with pip-audit
-        run: |
-          pip install pip-audit
-          pip-audit --disable-pip
-        continue-on-error: true
+                 --cov-report=xml:.coverage-reports/coverage.xml \
+                 --cov-report=html:.coverage-reports/html \
+                 --cov-fail-under=80
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-coverage
-          path: backend/.coverage-reports/
+          path: backend/.coverage-reports/html/
           retention-days: 30
+
+      - name: Security audit with pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+        continue-on-error: true
+
 
   # Frontend: Lint, Test, Coverage, Security
   frontend:
@@ -106,10 +107,6 @@ jobs:
       - name: Run tests with coverage
         run: npm run coverage
 
-      - name: Security audit with npm audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
-
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -117,6 +114,10 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage/
           retention-days: 30
+
+      - name: Security audit with npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
 
   docker-build:
     name: Docker Compose Build Test (PR to main)
