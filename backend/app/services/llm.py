@@ -210,3 +210,33 @@ class LLMClient:
         messages = self._prepare_messages(user_messages, system_prompt)
         res = self.llm.invoke(messages)
         return self._to_text(res) or str(res)
+
+    def get_context_limits(
+        self,
+        *,
+        default_ctx: int = 4096,
+        default_num_predict: int = 512,
+    ) -> tuple[int, int]:
+        """Return approximate context window and max prediction tokens.
+
+        Reads provider-specific configuration from the underlying model when available
+        and falls back to the given defaults otherwise.
+        """
+        model_kwargs = getattr(self.llm, "model_kwargs", None)
+
+        if isinstance(model_kwargs, dict):
+            num_ctx = model_kwargs.get("num_ctx", default_ctx)
+            num_predict = model_kwargs.get("num_predict", default_num_predict)
+        else:
+            num_ctx, num_predict = default_ctx, default_num_predict
+
+        try:
+            return int(num_ctx), int(num_predict)
+        except (TypeError, ValueError):
+            logger.warning(
+                "LLMClient.get_context_limits: invalid values num_ctx=%r "
+                "num_predict=%r; falling back to defaults.",
+                num_ctx,
+                num_predict,
+            )
+            return default_ctx, default_num_predict

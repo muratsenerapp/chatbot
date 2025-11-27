@@ -254,15 +254,10 @@ class ChatService:
 
     def _get_context_settings(self) -> tuple[int, int]:
         """Get context window settings from the LLM client."""
-        try:
-            model_kwargs = getattr(self.llm_client.llm, "model_kwargs", {})
-            num_ctx = model_kwargs.get("num_ctx", DEFAULT_CONTEXT_WINDOW)
-            num_predict = model_kwargs.get("num_predict", DEFAULT_MAX_PREDICT)
-        except AttributeError:
-            # LLM client doesn't have expected attributes
-            num_ctx, num_predict = DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_PREDICT
-
-        return num_ctx, num_predict
+        return self.llm_client.get_context_limits(
+            default_ctx=DEFAULT_CONTEXT_WINDOW,
+            default_num_predict=DEFAULT_MAX_PREDICT,
+        )
 
     @staticmethod
     def _calculate_metrics(
