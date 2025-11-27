@@ -32,7 +32,12 @@ class Settings(BaseSettings):
 
     # General
     LOG_LEVEL: str = "INFO"
-    ALLOW_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
+    ALLOW_ORIGINS: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ]
+    )
 
     # Ollama connectivity
     OLLAMA_BASE_URL: str = "http://localhost:11434"
