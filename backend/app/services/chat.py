@@ -12,34 +12,19 @@ from langchain_core.messages import BaseMessage, HumanMessage
 
 from app.services.llm import LLMClient
 from app.services.memory import SessionMemory
+from app.services.metrics import (
+    ChatMetrics,
+    INPUT_WARNING_THRESHOLD,
+    calculate_chat_metrics,
+)
 from app.utils.token_counter import estimate_tokens_from_messages
 from app.core.logging import get_logger
 
-INPUT_WARNING_THRESHOLD = 0.8
-TOTAL_WARNING_THRESHOLD = 0.9
+
 DEFAULT_CONTEXT_WINDOW = 4096
 DEFAULT_MAX_PREDICT = 512
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class ChatMetrics:
-    """Metrics from chat processing.
-
-    Attributes:
-        input_tokens: Estimated number of input tokens.
-        output_tokens: Estimated number of output tokens.
-        total_tokens: Sum of input and output tokens.
-        elapsed_ms: Processing time in milliseconds.
-        is_near_limit: Whether total tokens approach context/prediction limits.
-    """
-
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-    elapsed_ms: float
-    is_near_limit: bool
 
 
 @dataclass
@@ -123,8 +108,12 @@ class ChatService:
 
         self._update_memory_if_needed(session_id, message, response, explicit_messages)
 
-        metrics = self._calculate_metrics(
-            input_tokens, response, num_ctx, num_predict, start
+        metrics = calculate_chat_metrics(
+            input_tokens=input_tokens,
+            response_text=response,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            start_time=start,
         )
 
         logger.info(
@@ -177,8 +166,12 @@ class ChatService:
 
         self._update_memory_if_needed(session_id, message, full_text, explicit_messages)
 
-        metrics = self._calculate_metrics(
-            input_tokens, full_text, num_ctx, num_predict, start
+        metrics = calculate_chat_metrics(
+            input_tokens=input_tokens,
+            response_text=full_text,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            start_time=start,
         )
 
         logger.info(
@@ -257,30 +250,4 @@ class ChatService:
         return self.llm_client.get_context_limits(
             default_ctx=DEFAULT_CONTEXT_WINDOW,
             default_num_predict=DEFAULT_MAX_PREDICT,
-        )
-
-    @staticmethod
-    def _calculate_metrics(
-        input_tokens: int,
-        response_text: str,
-        num_ctx: int,
-        num_predict: int,
-        start_time: float,
-    ) -> ChatMetrics:
-        """Calculate chat metrics from processing."""
-        elapsed = (time.perf_counter() - start_time) * 1000
-        output_tokens = estimate_tokens_from_messages(
-            [HumanMessage(content=response_text)]
-        )
-        total_tokens = input_tokens + output_tokens
-        is_near_limit = total_tokens > int(
-            TOTAL_WARNING_THRESHOLD * (num_ctx + num_predict)
-        )
-
-        return ChatMetrics(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=total_tokens,
-            elapsed_ms=elapsed,
-            is_near_limit=is_near_limit,
         )
