@@ -34,7 +34,10 @@ class ChatIn(BaseModel):
     )
     messages: Optional[Sequence[ChatMessageIn]] = Field(
         default=None,
-        description="Optional explicit conversation messages. When provided, it takes precedence over server-side memory.",
+        description=(
+            "Optional explicit conversation messages. "
+            "When provided, it takes precedence over server-side memory."
+        ),
     )
 
 
