@@ -22,8 +22,7 @@ logger = get_logger(__name__)
 def get_chat_service(
     request: Request,
 ) -> ChatService:
-    """
-    Get or create a ChatService instance.
+    """Get or create a ChatService instance.
 
     The service is created lazily on first access and cached in app.state
     to avoid repeated initialization.

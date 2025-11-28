@@ -1,3 +1,5 @@
+"""Unit tests for SessionMemory service."""
+
 from __future__ import annotations
 
 from app.services.memory import SessionMemory

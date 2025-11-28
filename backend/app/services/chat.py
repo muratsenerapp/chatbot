@@ -56,8 +56,7 @@ class StreamComplete:
 
 
 class ChatService:
-    """
-    Handle chat business logic.
+    """Handle chat business logic.
 
     Responsibilities:
     - Process user messages (streaming and non-streaming)
@@ -130,8 +129,7 @@ class ChatService:
         session_id: str,
         explicit_messages: Optional[list[BaseMessage]] = None,
     ) -> AsyncGenerator[StreamChunk | StreamComplete, None]:
-        """
-        Process a chat message and stream response tokens.
+        """Process a chat message and stream response tokens.
 
         Args:
             message: User input text.
@@ -195,10 +193,17 @@ class ChatService:
         session_id: str,
         explicit_messages: Optional[list[BaseMessage]],
     ) -> list[BaseMessage]:
-        """
-        Prepare messages for LLM invocation.
+        """Prepare messages for LLM invocation.
 
         Either uses explicit messages or builds from session history.
+
+        Args:
+            message: Current user message to append.
+            session_id: Session identifier for history lookup.
+            explicit_messages: Optional pre-built messages to use instead of history.
+
+        Returns:
+            List of BaseMessage objects for LLM invocation.
         """
         if explicit_messages:
             return explicit_messages
@@ -213,8 +218,7 @@ class ChatService:
         model_messages: list[BaseMessage],
         session_id: str,
     ) -> tuple[int, int, int]:
-        """
-        Calculate input tokens and validate against a context window.
+        """Calculate input tokens and validate against a context window.
 
         Returns:
             tuple: (input_tokens, num_ctx, num_predict)
@@ -236,7 +240,14 @@ class ChatService:
         assistant_response: str,
         explicit_messages: Optional[list[BaseMessage]],
     ) -> None:
-        """Update session memory if not using explicit messages."""
+        """Update session memory if not using explicit messages.
+
+        Args:
+            session_id: Session identifier to update.
+            user_message: User message content to store.
+            assistant_response: Assistant response content to store.
+            explicit_messages: If provided, memory update is skipped.
+        """
         if not explicit_messages:
             self.memory.append_turn(
                 session_id,

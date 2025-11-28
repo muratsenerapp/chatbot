@@ -37,8 +37,7 @@ class SupportsChat(Protocol):
 
 
 class LLMClient:
-    """
-    A thin adapter around ChatOllama with a streaming API and a fixed system prompt.
+    """A thin adapter around ChatOllama with a streaming API and a fixed system prompt.
 
     Provides three invocation methods:
       - astream_chat: async streaming (token by token)
@@ -56,8 +55,7 @@ class LLMClient:
         llm: SupportsChat | None = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     ) -> None:
-        """
-        Initialize a ChatOllama-backed client with a consistent system prompt.
+        """Initialize a ChatOllama-backed client with a consistent system prompt.
 
         Uses an injected ``llm`` when provided (useful for tests); otherwise constructs a
         streaming-capable network client. Additional provider options can be forwarded via
@@ -102,7 +100,15 @@ class LLMClient:
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: str | None,
     ) -> list[BaseMessage]:
-        """Normalize user input into a list of LangChain messages."""
+        """Normalize user input into a list of LangChain messages.
+
+        Args:
+            user_messages: Either raw strings or pre-built BaseMessage objects.
+            system_prompt: Optional system prompt to prepend if using raw strings.
+
+        Returns:
+            List of LangChain BaseMessage objects ready for LLM invocation.
+        """
         if is_langchain_message_list(user_messages):
             messages = list(user_messages)
         else:
@@ -188,8 +194,7 @@ class LLMClient:
         user_messages: Sequence[str] | Sequence[BaseMessage],
         system_prompt: str | None = None,
     ) -> str:
-        """
-        Return the full response text synchronously.
+        """Return the full response text synchronously.
 
         Args:
             user_messages: Raw user turns as strings or a prebuilt list of LangChain
@@ -221,6 +226,13 @@ class LLMClient:
 
         Reads provider-specific configuration from the underlying model when available
         and falls back to the given defaults otherwise.
+
+        Args:
+            default_ctx: Fallback context window size if not configured.
+            default_num_predict: Fallback max tokens to generate if not configured.
+
+        Returns:
+            Tuple of (num_ctx, num_predict) as integers.
         """
         model_kwargs = getattr(self.llm, "model_kwargs", None)
 

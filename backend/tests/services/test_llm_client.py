@@ -1,3 +1,5 @@
+"""Unit tests for LLMClient wrapper functionality."""
+
 import pytest
 from langchain_core.messages import AIMessageChunk
 from app.services.llm import LLMClient
