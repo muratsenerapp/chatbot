@@ -4,6 +4,7 @@ Coordinates LLM invocation, session memory, token counting, and metrics collecti
 for both single-shot and streaming chat interactions.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Optional, AsyncGenerator
 import time
@@ -191,27 +192,31 @@ class ChatService:
         self,
         message: str,
         session_id: str,
-        explicit_messages: Optional[list[BaseMessage]],
+        explicit_messages: Optional[Sequence[BaseMessage]] = None,
     ) -> list[BaseMessage]:
-        """Prepare messages for LLM invocation.
+        """Prepare a mutable message list for LLM invocation.
 
-        Either uses explicit messages or builds from session history.
+        Either returns a list built from explicit messages or constructs one
+        from the session history plus the current user message.
 
         Args:
             message: Current user message to append.
-            session_id: Session identifier for history lookup.
-            explicit_messages: Optional pre-built messages to use instead of history.
+            session_id: Session identifier used for history lookup.
+            explicit_messages: Optional sequence of pre-built messages to use
+                instead of the session history. If provided, the returned list
+                is a copy of this sequence.
 
         Returns:
-            List of BaseMessage objects for LLM invocation.
+            A new list of BaseMessage objects for LLM invocation.
         """
-        if explicit_messages:
-            return explicit_messages
+        if explicit_messages is not None:
+            return list(explicit_messages)
 
         sys_prompt = self.llm_client.system_prompt
         self.memory.ensure_session(session_id, sys_prompt)
         history = self.memory.get_messages(session_id)
-        return history + [HumanMessage(content=message)]
+
+        return [*history, HumanMessage(content=message)]
 
     def _calculate_and_validate_input(
         self,

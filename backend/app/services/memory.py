@@ -6,6 +6,7 @@ Not persisted and not multiprocess/thread safe by design.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Dict, List, Optional
 
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
@@ -45,19 +46,19 @@ class SessionMemory:
             sp = system_prompt or self._default_system_prompt
             self._store[session_id] = [SystemMessage(content=sp)] if sp else []
 
-    def get_messages(self, session_id: str) -> List[BaseMessage]:
-        """Return a shallow copy of the session messages.
+    def get_messages(self, session_id: str) -> Sequence[BaseMessage]:
+        """Return an immutable snapshot of the session messages.
 
-        Prevents external mutation of internal state. Returns an empty list if
-        the session does not exist.
+        The returned tuple prevents external mutation of the internal message list.
+        Returns an empty tuple if the session does not exist.
 
         Args:
             session_id: Session key to read.
 
         Returns:
-            List of messages for the given session.
+            Immutable sequence (tuple) of messages for the given session.
         """
-        return list(self._store.get(session_id, []))
+        return tuple(self._store.get(session_id, ()))
 
     def append_user(
         self, session_id: str, content: str, *, system_prompt: Optional[str] = None
