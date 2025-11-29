@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import MessageBubble from "./MessageBubble";
 import InputBar from "./InputBar";
 import type { ChatMessage } from "@/types/chat";
 import { AlertTriangle, MessageCircle, RotateCw } from "lucide-react";
-import { openSSE } from "@/lib/sse";
-import { closeAndClear } from "./stream-utils";
+import { useChat } from "@/hooks/useChat";
 
 /** Props for {@link Chat}. */
 type Props = {
@@ -15,15 +14,6 @@ type Props = {
   ) => Promise<ChatMessage | void> | ChatMessage | void;
 };
 
-const CHAT_STREAM_URL = "/api/chat/stream";
-
-function newId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return String(Date.now()) + Math.random().toString(16).slice(2);
-}
-
 /**
  * Stateful chat container that streams tokens from the backend by default.
  *
@@ -32,16 +22,21 @@ function newId() {
  * @public
  */
 export default function Chat({ onSend }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [lastUserInput, setLastUserInput] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const {
+    messages,
+    isStreaming,
+    error,
+    startStreaming,
+    handleAbort,
+    handleRetry,
+    pushUserMessage,
+    addAssistantMessage,
+    setError,
+    clearError,
+  } = useChat();
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const esCloserRef = useRef<(() => void) | null>(null);
-  const streamingAssistantId = useRef<string | null>(null);
 
   useEffect(() => {
     const el = listRef.current;
@@ -50,124 +45,25 @@ export default function Chat({ onSend }: Props) {
     if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  useEffect(() => {
-    return () => {
-      closeAndClear(esCloserRef);
-    };
-  }, []);
-
-  function pushUserMessage(text: string) {
-    const userMsg: ChatMessage = { id: newId(), role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
-    return userMsg;
-  }
-
-  function createAssistantDraft() {
-    const id = newId();
-    streamingAssistantId.current = id;
-    const draft: ChatMessage = { id, role: "assistant", content: "" };
-    setMessages((prev) => [...prev, draft]);
-    return draft;
-  }
-
-  function appendToAssistant(token: string) {
-    const id = streamingAssistantId.current;
-    if (!id || !token) return;
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, content: m.content + token } : m)),
-    );
-  }
-
-  function markAssistantError(msg = "Sorry, something went wrong.") {
-    const id = streamingAssistantId.current;
-    if (!id) return;
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, content: msg, error: true } : m)),
-    );
-  }
-
-  function clearStreamRefs() {
-    setIsStreaming(false);
-    esCloserRef.current = null;
-    streamingAssistantId.current = null;
-  }
-
-  async function startStreaming(input: string) {
-    setError(null);
-    setIsStreaming(true);
-    setLastUserInput(input);
-
-    const userMsg = pushUserMessage(input);
-    createAssistantDraft();
-
-    const closer = openSSE(CHAT_STREAM_URL, {
-      params: {
-        message: userMsg.content,
-        session_id: sessionId || undefined,
-      },
-      onToken: (chunk) => {
-        appendToAssistant(chunk);
-      },
-      onDone: (metrics) => {
-        if (metrics?.session_id && metrics.session_id !== sessionId) {
-          setSessionId(metrics.session_id);
-        }
-        clearStreamRefs();
-      },
-      onServerErrorEvent: (msg) => {
-        markAssistantError(msg || "Server error");
-        setError(msg || "Request failed.");
-        clearStreamRefs();
-      },
-      onNetworkError: () => {
-        markAssistantError("Network error.");
-        setError("Network error. Please try again.");
-        clearStreamRefs();
-      },
-      onClose: () => {
-        clearStreamRefs();
-      },
-    });
-
-    esCloserRef.current = () => closer.close();
-  }
-
   async function handleSubmit(text: string) {
     if (isStreaming) return;
+
     if (onSend) {
-      setError(null);
+      clearError();
       const userMsg = pushUserMessage(text);
       try {
         const maybe = await onSend(text, messages.concat(userMsg));
         if (maybe && typeof maybe === "object") {
-          setMessages((prev) => [...prev, maybe]);
+          addAssistantMessage(maybe.content, { error: maybe.error });
         }
       } catch {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: newId(),
-            role: "assistant",
-            content: "Sorry, something went wrong.",
-            error: true,
-          },
-        ]);
+        addAssistantMessage("Sorry, something went wrong.", { error: true });
         setError("Failed to send. Please try again.");
       }
       return;
     }
-    await startStreaming(text);
-  }
 
-  function handleAbort() {
-    closeAndClear(esCloserRef);
-  }
-
-  function handleRetry() {
-    if (lastUserInput) {
-      setError(null);
-      startStreaming(lastUserInput);
-    }
+    startStreaming(text);
   }
 
   const isEmpty = messages.length === 0;

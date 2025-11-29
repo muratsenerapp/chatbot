@@ -6,7 +6,9 @@ import type { MutableRefObject } from "react";
  * @param ref - Mutable ref that may hold a cleanup function.
  * @public
  */
-export function closeAndClear(ref: MutableRefObject<(() => void) | null>) {
+export function closeAndClear(
+  ref: MutableRefObject<(() => void) | null>,
+): void {
   if (ref.current) {
     const closer = ref.current;
     ref.current = null;
