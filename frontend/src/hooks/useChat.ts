@@ -1,8 +1,10 @@
 import { useCallback, useRef, useState } from "react";
-import type { ChatMessage } from "@/types/chat";
+
+import { newId } from "@lib/idGenerator";
 import { openSSE } from "@lib/sseClient";
 import { closeAndClear } from "@lib/streamUtils";
-import { newId } from "@lib/idGenerator";
+
+import type { ChatMessage } from "@/types/chat";
 
 const CHAT_STREAM_URL = "/api/chat/stream";
 

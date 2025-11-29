@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
 import InputBar from "@components/chat/InputBar";
+import { fireEvent,render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 describe("InputBar", () => {
   it("submits trimmed text on Enter and clears the textarea", () => {

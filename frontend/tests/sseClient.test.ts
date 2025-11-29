@@ -1,5 +1,5 @@
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
 import { openSSE } from "@lib/sseClient";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const instances: EventSource[] = [];
 const BaseES = globalThis.EventSource as any;

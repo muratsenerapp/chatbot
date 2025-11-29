@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
+
 import { AlertTriangle, MessageCircle, RotateCw } from "lucide-react";
+
 import { useChat } from "@/hooks";
 import type { ChatMessage } from "@/types";
-import MessageBubble from "./MessageBubble";
+
 import InputBar from "./InputBar";
+import MessageBubble from "./MessageBubble";
 
 /** Props for {@link Chat}. */
 type ChatProps = {

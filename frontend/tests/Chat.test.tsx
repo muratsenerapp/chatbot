@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Chat from "@components/chat/Chat";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach,describe, expect, it, vi } from "vitest";
 
 if (!(window.HTMLElement.prototype as any).scrollIntoView) {
   Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {

@@ -1,5 +1,6 @@
-import { describe, it, vi, beforeAll, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { beforeAll, describe, expect,it, vi } from "vitest";
+
 import App from "@/App";
 
 beforeAll(() => {

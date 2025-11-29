@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import { SendHorizontal, Square } from "lucide-react";
 
 /** Props for {@link InputBar}. */

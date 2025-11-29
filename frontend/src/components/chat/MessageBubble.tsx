@@ -1,4 +1,5 @@
 import { Bot, User } from "lucide-react";
+
 import type { ChatMessage } from "@/types/chat";
 
 /** Props for {@link MessageBubble}. */
