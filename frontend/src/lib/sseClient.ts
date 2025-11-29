@@ -25,8 +25,6 @@ export type OpenSSEOptions = {
   onNetworkError?: (ev: Event) => void;
   /** Always called when the stream is closed. */
   onClose?: (ev?: Event) => void;
-  /** Enables verbose console logs for diagnostics. */
-  debug?: boolean;
 };
 
 /**
@@ -44,14 +42,13 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
     onServerErrorEvent,
     onNetworkError,
     onClose,
-    debug,
   } = opts;
 
   const fullUrl = new URL(url, window.location.origin);
   if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== null) {
-        fullUrl.searchParams.set(k, String(v));
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null) {
+        fullUrl.searchParams.set(key, String(value));
       }
     }
   }
@@ -69,48 +66,47 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
     if (didClose) return;
     didClose = true;
 
-    if (debug) console.debug("[SSE] close()", { manuallyClosed });
-
     if (manuallyClosed) {
-      if (onBackendErrorRef)
+      if (onBackendErrorRef) {
         eventSource.removeEventListener("backend-error", onBackendErrorRef);
-      if (onTokenRef) eventSource.removeEventListener("token", onTokenRef);
-      if (onDoneRef) eventSource.removeEventListener("done", onDoneRef);
+      }
+      if (onTokenRef) {
+        eventSource.removeEventListener("token", onTokenRef);
+      }
+      if (onDoneRef) {
+        eventSource.removeEventListener("done", onDoneRef);
+      }
       eventSource.onopen = null as any;
       eventSource.onerror = null as any;
       eventSource.onmessage = null as any;
     }
 
     eventSource.close();
-
     onClose?.(ev);
   }
+
   onBackendErrorRef = (ev: Event) => {
-    if (manuallyClosed) {
-      if (debug) console.debug("[SSE] server error ignored after manual close");
-      return;
-    }
+    if (manuallyClosed) return;
     const messageEvent = ev as MessageEvent;
-    if (debug) console.debug("[SSE] server error event:", messageEvent.data);
-    const msg =
+    const message =
       typeof messageEvent.data === "string"
         ? messageEvent.data
         : "Server error";
-    onServerErrorEvent?.(msg);
+    onServerErrorEvent?.(message);
     close(ev);
   };
 
   onTokenRef = (ev: Event) => {
     if (manuallyClosed) return;
     const messageEvent = ev as MessageEvent;
-    if (debug) console.debug("[SSE] token:", messageEvent.data);
-    if (typeof messageEvent.data === "string") onToken?.(messageEvent.data);
+    if (typeof messageEvent.data === "string") {
+      onToken?.(messageEvent.data);
+    }
   };
 
   onDoneRef = (ev: Event) => {
     if (manuallyClosed) return;
     const messageEvent = ev as MessageEvent;
-    if (debug) console.debug("[SSE] done:", messageEvent.data);
     try {
       onDone?.(JSON.parse(messageEvent.data));
     } catch {
@@ -124,18 +120,14 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
   eventSource.addEventListener("done", onDoneRef);
 
   eventSource.onopen = () => {
-    if (debug) console.debug("[SSE] open:", fullUrl.toString());
     onOpen?.();
   };
 
   eventSource.onerror = (ev) => {
     const readyState = eventSource.readyState;
     if (manuallyClosed || readyState === 2) {
-      if (debug) console.debug("[SSE] network error ignored after close");
       return;
     }
-    if (debug)
-      console.debug("[SSE] network error:", ev, "readyState:", readyState);
     onNetworkError?.(ev);
     close(ev);
   };
@@ -145,7 +137,7 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
     close(ev);
   };
 
-  return { eventSource: eventSource, close: publicClose };
+  return { eventSource, close: publicClose };
 }
 
 /** Public return type of {@link openSSE}. */
