@@ -236,6 +236,64 @@ describe("useChat", () => {
 
       expect(result.current.isStreaming).toBe(false);
     });
+
+    it("ignores empty string tokens", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("Hello");
+      });
+
+      act(() => {
+        lastSSEOptions?.onToken?.("First");
+        lastSSEOptions?.onToken?.("");
+        lastSSEOptions?.onToken?.("Second");
+      });
+
+      expect(result.current.messages[1].content).toBe("FirstSecond");
+    });
+
+    it("ignores tokens when no streaming assistant message exists", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        lastSSEOptions?.onToken?.("Orphan token");
+      });
+
+      expect(result.current.messages).toHaveLength(0);
+    });
+
+    it("handles special characters in tokens", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("Hello");
+      });
+
+      act(() => {
+        lastSSEOptions?.onToken?.("<div>");
+        lastSSEOptions?.onToken?.("&amp;");
+        lastSSEOptions?.onToken?.("</div>");
+      });
+
+      expect(result.current.messages[1].content).toBe("<div>&amp;</div>");
+    });
+
+    it("handles unicode characters in tokens", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("Hello");
+      });
+
+      act(() => {
+        lastSSEOptions?.onToken?.("Merhaba ");
+        lastSSEOptions?.onToken?.("dünya ");
+        lastSSEOptions?.onToken?.("🌍");
+      });
+
+      expect(result.current.messages[1].content).toBe("Merhaba dünya 🌍");
+    });
   });
 
   describe("handleAbort", () => {
@@ -373,6 +431,116 @@ describe("useChat", () => {
       });
 
       expect(lastSSEOptions.params.session_id).toBe("session-abc");
+    });
+
+    it("updates session_id after retry when new session_id is received", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("First message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onDone?.({ session_id: "session-old" });
+      });
+
+      expect(result.current.sessionId).toBe("session-old");
+
+      act(() => {
+        result.current.startStreaming("Second message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onNetworkError?.(new Event("error"));
+      });
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      act(() => {
+        lastSSEOptions?.onDone?.({ session_id: "session-new" });
+      });
+
+      expect(result.current.sessionId).toBe("session-new");
+    });
+
+    it("keeps existing session_id when retry returns same session_id", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("First message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onDone?.({ session_id: "session-same" });
+      });
+
+      act(() => {
+        result.current.startStreaming("Second message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onNetworkError?.(new Event("error"));
+      });
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      act(() => {
+        lastSSEOptions?.onDone?.({ session_id: "session-same" });
+      });
+
+      expect(result.current.sessionId).toBe("session-same");
+    });
+
+    it("does not update session_id when done event has no session_id", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("First message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onDone?.({ session_id: "session-existing" });
+      });
+
+      act(() => {
+        result.current.startStreaming("Second message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onDone?.({ chars: 100, elapsed_ms: 500 });
+      });
+
+      expect(result.current.sessionId).toBe("session-existing");
+    });
+
+    it("sends existing session_id in retry request", () => {
+      const { result } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("First message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onDone?.({ session_id: "session-for-retry" });
+      });
+
+      act(() => {
+        result.current.startStreaming("Second message");
+      });
+
+      act(() => {
+        lastSSEOptions?.onNetworkError?.(new Event("error"));
+      });
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      expect(lastSSEOptions.params.session_id).toBe("session-for-retry");
     });
   });
 });

@@ -225,5 +225,65 @@ describe("Chat", () => {
 
       expect(mockUseChat.startStreaming).not.toHaveBeenCalled();
     });
+
+    it("does not call onSend when streaming is in progress", async () => {
+      mockUseChat.isStreaming = true;
+      const onSend = vi.fn();
+
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(mockUseChat.pushUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("does not submit when input is empty", async () => {
+      render(<Chat />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(mockUseChat.startStreaming).not.toHaveBeenCalled();
+    });
+
+    it("does not submit when input contains only whitespace", async () => {
+      render(<Chat />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "   " } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(mockUseChat.startStreaming).not.toHaveBeenCalled();
+    });
+
+    it("does not call onSend when input is empty", async () => {
+      const onSend = vi.fn();
+
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(mockUseChat.pushUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("does not call onSend when input contains only whitespace", async () => {
+      const onSend = vi.fn();
+
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "    " } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(mockUseChat.pushUserMessage).not.toHaveBeenCalled();
+    });
   });
 });
