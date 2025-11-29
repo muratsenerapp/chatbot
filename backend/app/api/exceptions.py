@@ -1,3 +1,9 @@
+"""Exception handlers and error formatting utilities for API endpoints.
+
+Provides standardized error responses for HTTP and SSE endpoints,
+converting internal exceptions to appropriate HTTP status codes.
+"""
+
 from fastapi import HTTPException
 from httpx import ConnectError, TimeoutException
 from pydantic import ValidationError
@@ -9,7 +15,22 @@ logger = get_logger(__name__)
 def handle_chat_error(
     e: Exception, session_id: str, endpoint: str, method: str
 ) -> HTTPException:
-    """Convert exceptions with full context."""
+    """Convert exceptions to appropriate HTTPException with full context.
+
+    Maps different exception types to HTTP status codes:
+    - ConnectError/TimeoutException -> 503
+    - ValueError/ValidationError -> 400
+    - Other exceptions -> 500
+
+    Args:
+        e: The caught exception to convert.
+        session_id: Current session identifier for logging.
+        endpoint: API endpoint path for logging context.
+        method: HTTP method (GET/POST) for logging context.
+
+    Returns:
+        HTTPException with appropriate status code and message.
+    """
 
     # Full context prefix
     log_prefix = _build_log_prefix(
@@ -33,7 +54,16 @@ def handle_chat_error(
 def format_stream_error(
     e: Exception, session_id: str, endpoint: str = "/api/chat/stream"
 ) -> dict:
-    """Format exception for SSE event (streaming endpoint)."""
+    """Format exception as JSON payload for SSE backend-error event.
+
+    Args:
+        e: The caught exception to format.
+        session_id: Current session identifier for logging.
+        endpoint: API endpoint path for logging context.
+
+    Returns:
+        Dictionary with 'code' and 'message' keys suitable for JSON serialization.
+    """
 
     log_prefix = _build_log_prefix(
         session_id=session_id,

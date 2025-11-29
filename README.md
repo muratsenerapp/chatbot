@@ -15,7 +15,7 @@ This chatbot application provides an interactive conversational interface powere
 │   Browser   │ ◄─────────────────► │   FastAPI   │ ◄────────────────► │   Ollama    │
 │  (React UI) │   Streaming Chat    │   Backend   │   Model Queries    │  Container  │
 └─────────────┘                     └─────────────┘                    └─────────────┘
-     :3000                               :8000                              :11434
+     :5173                               :8000                              :11434
 ```
 
 ### Technology Stack
@@ -104,7 +104,7 @@ chatbot/
    ```
 
 4. **Access the application:**
-  - Frontend: http://localhost:3000
+  - Frontend: http://localhost:5173
   - Backend API docs: http://localhost:8000/api/docs
   - Ollama: http://localhost:11434
 

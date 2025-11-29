@@ -6,7 +6,7 @@ import json
 from contextlib import contextmanager
 
 from fastapi.testclient import TestClient
-from httpx import ConnectError
+from httpx import ConnectError, TimeoutException
 from langchain_core.messages import AIMessageChunk
 
 from app.main import app
@@ -19,7 +19,19 @@ from app.services.memory import SessionMemory
 # ---- Fakes & overrides ---------------------------------------------------
 
 
-class FakeOKClient:
+class HasContextLimitsMixin:
+    """Test helper mixin to satisfy ChatService LLM interface."""
+
+    def get_context_limits(
+        self,
+        *,
+        default_ctx: int = 4096,
+        default_num_predict: int = 512,
+    ) -> tuple[int, int]:
+        return default_ctx, default_num_predict
+
+
+class FakeOKClient(HasContextLimitsMixin):
     """OK client for success scenarios; streaming yields a couple of chunks."""
 
     system_prompt = "SYS"
@@ -32,7 +44,7 @@ class FakeOKClient:
         return "OK"
 
 
-class FakeFailClient:
+class FakeFailClient(HasContextLimitsMixin):
     """Client that fails with a generic backend error (maps to HTTP 500)."""
 
     system_prompt = "SYS"
@@ -47,7 +59,7 @@ class FakeFailClient:
         raise RuntimeError("fail")
 
 
-class FakeValidationErrorClient:
+class FakeValidationErrorClient(HasContextLimitsMixin):
     """Client that raises ValueError to simulate validation-like errors (400)."""
 
     system_prompt = "SYS"
@@ -60,7 +72,7 @@ class FakeValidationErrorClient:
         raise ValueError("invalid")
 
 
-class FakeUnavailableClient:
+class FakeUnavailableClient(HasContextLimitsMixin):
     """Client that simulates LLM connectivity issues (503)."""
 
     system_prompt = "SYS"
@@ -71,6 +83,21 @@ class FakeUnavailableClient:
 
     async def ainvoke(self, messages):
         raise ConnectError("llm unavailable")
+
+
+class FakeTimeoutClient(HasContextLimitsMixin):
+    """Client that simulates LLM timeouts (TimeoutException -> 503)."""
+
+    system_prompt = "SYS"
+
+    async def astream_chat(self, messages):
+        # Simulate partial stream, then a timeout from the LLM
+        yield "partial"
+        raise TimeoutException("llm timeout")
+
+    async def ainvoke(self, messages):
+        # For sync endpoint, this would also behave as a timeout
+        raise TimeoutException("llm timeout")
 
 
 @contextmanager
@@ -84,6 +111,45 @@ def override_chat_service(fake_client):
         yield
     finally:
         app.dependency_overrides.pop(get_chat_service, None)
+
+
+# ----- Helpers ---------------------------------------------------------
+
+
+def _read_backend_error_payload(fake_client, params: dict[str, str]) -> dict:
+    """Read backend-error SSE event and decode its JSON payload.
+
+    This helper:
+    - calls /api/chat/stream with the given params,
+    - finds the `event: backend-error` line,
+    - reads the first following `data:` line,
+    - parses JSON and returns the resulting dict.
+    """
+    with override_chat_service(fake_client):
+        c = TestClient(app)
+        with c.stream("GET", "/api/chat/stream", params=params) as resp:
+            assert resp.status_code == 200
+
+            saw_error = False
+            data_line: str | None = None
+
+            for i, chunk in enumerate(resp.iter_lines()):
+                line = chunk.decode() if isinstance(chunk, bytes) else chunk
+
+                if line.startswith("event: backend-error"):
+                    saw_error = True
+                    continue
+
+                if saw_error and line.startswith("data: "):
+                    data_line = line[len("data: ") :].strip()
+                    break
+
+                if i > 200:  # safety
+                    break
+
+            assert data_line is not None, "backend-error event payload not found"
+
+            return json.loads(data_line)
 
 
 # ---- Existing API tests --------------------------------------------------
@@ -181,6 +247,46 @@ def test_chat_stream_get_backend_error_event_instead_of_500():
                 if i > 50:
                     break
             assert saw_error
+
+
+def test_chat_stream_backend_error_payload_connect_error():
+    """backend-error payload for ConnectError exposes llm_unavailable code."""
+    payload = _read_backend_error_payload(
+        fake_client=FakeUnavailableClient(),
+        params={"message": "hello"},
+    )
+
+    # format_stream_error -> {"code": "llm_unavailable", "message": "LLM unavailable"}
+    assert payload == {
+        "code": "llm_unavailable",
+        "message": "LLM unavailable",
+    }
+
+
+def test_chat_stream_backend_error_payload_timeout():
+    """backend-error payload for TimeoutException also maps to llm_unavailable."""
+    payload = _read_backend_error_payload(
+        fake_client=FakeTimeoutClient(),
+        params={"message": "hello"},
+    )
+
+    assert payload == {
+        "code": "llm_unavailable",
+        "message": "LLM unavailable",
+    }
+
+
+def test_chat_stream_backend_error_payload_validation_error():
+    """backend-error payload for validation-like error exposes validation_error code."""
+    payload = _read_backend_error_payload(
+        fake_client=FakeValidationErrorClient(),
+        params={"message": "hello"},
+    )
+
+    assert payload == {
+        "code": "validation_error",
+        "message": "Invalid: invalid",
+    }
 
 
 # ---- Memory tests (moved here) ------------------------------------------

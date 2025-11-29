@@ -7,6 +7,8 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped
+    networks:
+      - chatbot-network
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 5s
@@ -22,6 +24,8 @@ services:
       - OLLAMA_HOST=http://ollama:11434
     entrypoint: ["/bin/sh", "-lc", "ollama pull qwen2.5:7b-instruct"]
     restart: "no"
+    networks:
+      - chatbot-network
 
   backend:
     build:
@@ -35,6 +39,8 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=qwen2.5:7b-instruct
+    networks:
+      - chatbot-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 10s
@@ -51,6 +57,12 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      - chatbot-network
 
 volumes:
   ollama-data:
+
+networks:
+  chatbot-network:
+    driver: bridge

@@ -7,7 +7,17 @@ from app.services.chat import ChatService, ChatMetrics, StreamChunk, StreamCompl
 from app.services.memory import SessionMemory
 
 
-class FakeLLMForService:
+class HasContextLimitsMixin:
+    def get_context_limits(
+        self,
+        *,
+        default_ctx: int = 4096,
+        default_num_predict: int = 512,
+    ) -> tuple[int, int]:
+        return default_ctx, default_num_predict
+
+
+class FakeLLMForService(HasContextLimitsMixin):
     """Fake LLM that returns predictable responses."""
 
     def __init__(self, response: str = "Test response"):
@@ -287,7 +297,7 @@ async def test_get_context_settings_defaults():
     """Test context settings fallback to defaults."""
 
     # Create LLM without model_kwargs
-    class MinimalLLM:
+    class MinimalLLM(HasContextLimitsMixin):
         system_prompt = "Test"
         llm = None  # No model_kwargs available
 
@@ -313,7 +323,7 @@ async def test_get_context_settings_defaults():
 async def test_process_message_empty_response():
     """Test handling of empty LLM response."""
 
-    class EmptyLLM:
+    class EmptyLLM(HasContextLimitsMixin):
         system_prompt = "Test"
         llm = type("obj", (object,), {"model_kwargs": {}})
 

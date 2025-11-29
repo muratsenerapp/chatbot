@@ -1,3 +1,8 @@
+"""Message conversion utilities between string sequences and LangChain messages.
+
+Handles bidirectional conversion for LLM communication layer.
+"""
+
 from typing import Sequence, Optional
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 

@@ -1,3 +1,5 @@
+"""Shared pytest fixtures for backend test suite."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
