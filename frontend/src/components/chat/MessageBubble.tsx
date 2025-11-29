@@ -2,7 +2,7 @@ import { Bot, User } from "lucide-react";
 import type { ChatMessage } from "@/types/chat";
 
 /** Props for {@link MessageBubble}. */
-type Props = { message: ChatMessage };
+type MessageBubbleProps = { message: ChatMessage };
 
 /**
  * Chat message bubble with role-aware styling.
@@ -10,9 +10,9 @@ type Props = { message: ChatMessage };
  * @remarks Renders user vs assistant messages differently and supports an error state.
  * @public
  */
-export default function MessageBubble({ message }: Props) {
+export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
-  const base =
+  const baseStyles =
     "max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm shadow";
   const userStyles = "bg-blue-600 text-white dark:bg-blue-500";
   const assistantStyles =
@@ -32,7 +32,7 @@ export default function MessageBubble({ message }: Props) {
 
       <div
         className={[
-          base,
+          baseStyles,
           isUser ? userStyles : assistantStyles,
           message.error ? errorStyles : "",
         ].join(" ")}

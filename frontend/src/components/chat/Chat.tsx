@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
+import { AlertTriangle, MessageCircle, RotateCw } from "lucide-react";
+import { useChat } from "@/hooks";
+import type { ChatMessage } from "@/types";
 import MessageBubble from "./MessageBubble";
 import InputBar from "./InputBar";
-import type { ChatMessage } from "@/types/chat";
-import { AlertTriangle, MessageCircle, RotateCw } from "lucide-react";
-import { useChat } from "@/hooks/useChat";
 
 /** Props for {@link Chat}. */
-type Props = {
+type ChatProps = {
   /** Optional custom send handler; bypasses built-in SSE. */
   onSend?: (
     input: string,
@@ -21,7 +21,7 @@ type Props = {
  * Cleans up any open streams on unmount.
  * @public
  */
-export default function Chat({ onSend }: Props) {
+export default function Chat({ onSend }: ChatProps) {
   const {
     messages,
     isStreaming,
@@ -88,8 +88,8 @@ export default function Chat({ onSend }: Props) {
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
+            {messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
             ))}
             <div ref={bottomRef} />
           </div>

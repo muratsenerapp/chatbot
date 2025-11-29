@@ -1,5 +1,5 @@
-import Chat from "@/components/chat/Chat";
-import ThemeToggle from "@/components/theme-toggle";
+import { Chat } from "@/components";
+import { ThemeToggle } from "@/components";
 
 /**
  * Application surface that renders the header and the chat experience.

@@ -6,7 +6,7 @@ let lastSSEOptions: any;
 let lastCloseFn: any;
 let lastSSEUrl: string | undefined;
 
-vi.mock("@/lib/sse", () => {
+vi.mock("@/lib/sseClient", () => {
   return {
     openSSE: (url: string, opts: any) => {
       lastSSEUrl = url;
