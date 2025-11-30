@@ -69,6 +69,14 @@ jobs:
           path: backend/.coverage-reports/html/
           retention-days: 30
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: backend/.coverage-reports/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
       - name: Security audit with pip-audit
         run: |
           pip install pip-audit
@@ -114,6 +122,14 @@ jobs:
           name: frontend-coverage
           path: frontend/coverage/
           retention-days: 30
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
 
       - name: Security audit with npm audit
         run: npm audit --audit-level=moderate
