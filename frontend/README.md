@@ -112,11 +112,11 @@ frontend/
 │   │   │   ├── Chat.tsx     # Main chat container with state management
 │   │   │   ├── MessageBubble.tsx  # Message display component
 │   │   │   ├── InputBar.tsx       # User input component
-│   │   │   └── stream-utils.ts    # Stream management utilities
-│   │   └── theme-toggle.tsx       # Dark/light theme toggle
+│   │   │   └── streamUtils.ts    # Stream management utilities
+│   │   └── ThemeToggle.tsx       # Dark/light theme toggle
 │   │
 │   ├── lib/
-│   │   └── sse.ts           # Server-Sent Events client library
+│   │   └── sseClient.ts           # Server-Sent Events client library
 │   │
 │   ├── types/
 │   │   └── chat.ts          # TypeScript type definitions
@@ -126,8 +126,8 @@ frontend/
 │   └── index.css            # Global styles and Tailwind directives
 │
 ├── tests/                   # Test files
-│   ├── openSSE.test.ts     # SSE client tests
-│   ├── stream-utils.test.ts # Stream utility tests
+│   ├── sseClient.test.ts     # SSE client tests
+│   ├── streamUtils.test.ts # Stream utility tests
 │   └── setup.ts            # Test configuration
 │
 ├── public/                  # Static assets
@@ -151,7 +151,7 @@ frontend/
 
 The application uses Server-Sent Events (SSE) to receive token-by-token responses from the backend, providing a smooth, real-time chat experience.
 
-**Implementation:** `src/lib/sse.ts` and `src/components/chat/Chat.tsx`
+**Implementation:** `src/lib/sseClient.ts` and `src/components/chat/Chat.tsx`
 
 ### Session Management
 
@@ -164,7 +164,7 @@ Automatic dark/light theme switching with system preference detection:
 - Persists user theme choice in localStorage
 - Smooth transitions between themes
 
-**Implementation:** `src/components/theme-toggle.tsx`
+**Implementation:** `src/components/ThemeToggle.tsx`
 
 ### Error Handling
 

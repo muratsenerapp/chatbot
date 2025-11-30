@@ -1,6 +1,6 @@
-import { describe, it } from "vitest";
+import { closeAndClear } from "@lib/streamUtils";
 import assert from "node:assert/strict";
-import { closeAndClear } from "@components/chat/stream-utils";
+import { describe, it } from "vitest";
 
 describe("closeAndClear", () => {
   it("invokes the closer once and clears the ref", () => {

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
-import ThemeToggle from "@/components/theme-toggle";
+import ThemeToggle from "@components/ThemeToggle";
+import { fireEvent,render, screen } from "@testing-library/react";
+import { beforeEach,describe, expect, it, vi } from "vitest";
 
 function mockMatchMedia(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {

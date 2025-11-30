@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+
 import { SendHorizontal, Square } from "lucide-react";
 
 /** Props for {@link InputBar}. */
-type Props = {
+type InputBarProps = {
   /** Send callback invoked on submit. */
   onSubmit: (text: string) => void;
   /** Disables the input and buttons. */
@@ -27,15 +28,15 @@ export default function InputBar({
   placeholder = "Type your message…",
   isStreaming = false,
   onAbort,
-}: Props) {
+}: InputBarProps) {
   const [value, setValue] = useState("");
-  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    const el = taRef.current;
-    if (!el) return;
-    el.style.height = "0px";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px";
   }, [value]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -62,7 +63,7 @@ export default function InputBar({
       <div className="flex items-end gap-2">
         <textarea
           id="chat-input"
-          ref={taRef}
+          ref={textareaRef}
           className="max-h-[200px] w-full resize-none bg-transparent p-2 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
           rows={1}
           value={value}

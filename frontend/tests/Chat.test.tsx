@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
 import Chat from "@components/chat/Chat";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach,describe, expect, it, vi } from "vitest";
 
 if (!(window.HTMLElement.prototype as any).scrollIntoView) {
   Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", {
@@ -10,179 +10,280 @@ if (!(window.HTMLElement.prototype as any).scrollIntoView) {
   });
 }
 
-let lastSSEOptions: any;
-let lastCloseFn: any;
-let lastSSEUrl: string | undefined;
+const mockUseChat = {
+  messages: [] as any[],
+  sessionId: null as string | null,
+  isStreaming: false,
+  error: null as string | null,
+  startStreaming: vi.fn(),
+  handleAbort: vi.fn(),
+  handleRetry: vi.fn(),
+  pushUserMessage: vi.fn((text: string) => ({
+    id: "user-msg-id",
+    role: "user",
+    content: text,
+  })),
+  addAssistantMessage: vi.fn((content: string, options?: any) => ({
+    id: "assistant-msg-id",
+    role: "assistant",
+    content,
+    error: options?.error,
+  })),
+  setError: vi.fn(),
+  clearError: vi.fn(),
+};
 
-vi.mock("@/lib/sse", () => {
-  return {
-    openSSE: (url: string, opts: any) => {
-      lastSSEUrl = url;
-      lastSSEOptions = opts;
-
-      const close = vi.fn((ev?: Event) => {
-        if (opts && typeof opts.onClose === "function") {
-          opts.onClose(ev);
-        }
-      });
-
-      lastCloseFn = close;
-
-      return {
-        es: {} as EventSource,
-        close,
-      };
-    },
-  };
-});
+vi.mock("@/hooks/useChat", () => ({
+  useChat: () => mockUseChat,
+}));
 
 beforeEach(() => {
-  lastSSEOptions = undefined;
-  lastCloseFn = undefined;
-  lastSSEUrl = undefined;
+  mockUseChat.messages = [];
+  mockUseChat.sessionId = null;
+  mockUseChat.isStreaming = false;
+  mockUseChat.error = null;
+  mockUseChat.startStreaming.mockClear();
+  mockUseChat.handleAbort.mockClear();
+  mockUseChat.handleRetry.mockClear();
+  mockUseChat.pushUserMessage.mockClear();
+  mockUseChat.addAssistantMessage.mockClear();
+  mockUseChat.setError.mockClear();
+  mockUseChat.clearError.mockClear();
+
+  mockUseChat.pushUserMessage.mockImplementation((text: string) => ({
+    id: "user-msg-id",
+    role: "user",
+    content: text,
+  }));
 });
 
 describe("Chat", () => {
-  it("delegates sending to onSend when provided and appends assistant reply", async () => {
-    const onSend = vi.fn().mockResolvedValue({
-      id: "assistant-1",
-      role: "assistant",
-      content: "Mock reply",
+  describe("empty state", () => {
+    it("shows empty state message when no messages", () => {
+      render(<Chat />);
+
+      expect(screen.getByText("No messages yet")).toBeInTheDocument();
+      expect(
+        screen.getByText("Start the conversation by sending one."),
+      ).toBeInTheDocument();
     });
-
-    render(<Chat onSend={onSend} />);
-
-    const input = screen.getByPlaceholderText("Type your message…");
-
-    fireEvent.change(input, { target: { value: "Hello" } });
-    fireEvent.keyDown(input, {
-      key: "Enter",
-      code: "Enter",
-      charCode: 13,
-    });
-
-    await screen.findByText("Hello");
-
-    expect(onSend).toHaveBeenCalledTimes(1);
-    expect(onSend.mock.calls[0][0]).toBe("Hello");
-
-    await screen.findByText("Mock reply");
   });
 
-  it("shows an error assistant message when onSend throws", async () => {
-    const onSend = vi.fn().mockImplementation(() => {
-      throw new Error("boom");
+  describe("message rendering", () => {
+    it("renders messages when present", () => {
+      mockUseChat.messages = [
+        { id: "1", role: "user", content: "Hello" },
+        { id: "2", role: "assistant", content: "Hi there!" },
+      ];
+
+      render(<Chat />);
+
+      expect(screen.getByText("Hello")).toBeInTheDocument();
+      expect(screen.getByText("Hi there!")).toBeInTheDocument();
     });
-
-    render(<Chat onSend={onSend} />);
-
-    const input = screen.getByPlaceholderText("Type your message…");
-
-    fireEvent.change(input, { target: { value: "Hi" } });
-    fireEvent.keyDown(input, {
-      key: "Enter",
-      code: "Enter",
-      charCode: 13,
-    });
-
-    await screen.findByText("Hi");
-    await screen.findByText("Sorry, something went wrong.");
   });
 
-  it("streams assistant reply via SSE and stops streaming on onDone", async () => {
-    render(<Chat />);
+  describe("error banner", () => {
+    it("shows error banner when error exists", () => {
+      mockUseChat.error = "Something went wrong";
 
-    const input = screen.getByPlaceholderText("Type your message…");
+      render(<Chat />);
 
-    fireEvent.change(input, { target: { value: "stream this" } });
-    fireEvent.keyDown(input, {
-      key: "Enter",
-      code: "Enter",
-      charCode: 13,
+      expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     });
 
-    await screen.findByText("stream this");
+    it("calls handleRetry when retry button is clicked", () => {
+      mockUseChat.error = "Network error";
 
-    const stopButton = await screen.findByRole("button", {
-      name: /stop streaming/i,
-    });
-    expect(stopButton).toBeDefined();
+      render(<Chat />);
 
-    expect(lastSSEUrl).toBeDefined();
-    expect(lastSSEOptions).toBeDefined();
-    if (lastSSEOptions) {
-      expect(lastSSEOptions.params.message).toBe("stream this");
-    }
+      const retryButton = screen.getByRole("button", {
+        name: /retry last message/i,
+      });
+      fireEvent.click(retryButton);
 
-    act(() => {
-      lastSSEOptions?.onToken?.("Hello ");
-      lastSSEOptions?.onToken?.("world");
+      expect(mockUseChat.handleRetry).toHaveBeenCalledTimes(1);
     });
 
-    await screen.findByText("Hello world");
+    it("does not show error banner when no error", () => {
+      render(<Chat />);
 
-    act(() => {
-      lastSSEOptions?.onDone?.({ session_id: "session-1" });
+      expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
     });
-
-    const stopAfter = screen.queryByRole("button", {
-      name: /stop streaming/i,
-    });
-    expect(stopAfter).toBeNull();
   });
 
-  it("aborts streaming and calls the SSE close function exactly once", async () => {
-    render(<Chat />);
+  describe("streaming state", () => {
+    it("shows stop button when streaming", () => {
+      mockUseChat.isStreaming = true;
 
-    const input = screen.getByPlaceholderText("Type your message…");
+      render(<Chat />);
 
-    fireEvent.change(input, { target: { value: "please abort" } });
-    fireEvent.keyDown(input, {
-      key: "Enter",
-      code: "Enter",
-      charCode: 13,
+      expect(
+        screen.getByRole("button", { name: /stop streaming/i }),
+      ).toBeInTheDocument();
     });
 
-    const stopButton = await screen.findByRole("button", {
-      name: /stop streaming/i,
+    it("calls handleAbort when stop button is clicked", () => {
+      mockUseChat.isStreaming = true;
+
+      render(<Chat />);
+
+      const stopButton = screen.getByRole("button", {
+        name: /stop streaming/i,
+      });
+      fireEvent.click(stopButton);
+
+      expect(mockUseChat.handleAbort).toHaveBeenCalledTimes(1);
     });
-    expect(stopButton).toBeDefined();
-    expect(lastCloseFn).toBeDefined();
-
-    fireEvent.click(stopButton);
-
-    expect(lastCloseFn).toHaveBeenCalledTimes(1);
-
-    const stopAfter = screen.queryByRole("button", {
-      name: /stop streaming/i,
-    });
-    expect(stopAfter).toBeNull();
   });
 
-  it("shows network error message when onNetworkError is triggered", async () => {
-    render(<Chat />);
+  describe("onSend callback", () => {
+    it("delegates sending to onSend when provided", async () => {
+      const onSend = vi.fn().mockResolvedValue({
+        id: "assistant-1",
+        role: "assistant",
+        content: "Mock reply",
+      });
 
-    const input = screen.getByPlaceholderText("Type your message…");
+      render(<Chat onSend={onSend} />);
 
-    fireEvent.change(input, { target: { value: "cause network error" } });
-    fireEvent.keyDown(input, {
-      key: "Enter",
-      code: "Enter",
-      charCode: 13,
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      await waitFor(() => {
+        expect(mockUseChat.clearError).toHaveBeenCalled();
+        expect(mockUseChat.pushUserMessage).toHaveBeenCalledWith("Hello");
+        expect(onSend).toHaveBeenCalledTimes(1);
+        expect(onSend.mock.calls[0][0]).toBe("Hello");
+      });
     });
 
-    await screen.findByText("cause network error");
+    it("adds assistant message when onSend returns a message", async () => {
+      const onSend = vi.fn().mockResolvedValue({
+        id: "assistant-1",
+        role: "assistant",
+        content: "Mock reply",
+      });
 
-    act(() => {
-      lastSSEOptions?.onNetworkError?.(new Event("error"));
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      await waitFor(() => {
+        expect(mockUseChat.addAssistantMessage).toHaveBeenCalledWith(
+          "Mock reply",
+          { error: undefined },
+        );
+      });
     });
 
-    await screen.findByText("Network error. Please try again.");
-    await screen.findByText("Network error.");
+    it("shows error message when onSend throws", async () => {
+      const onSend = vi.fn().mockRejectedValue(new Error("boom"));
 
-    const stopAfter = screen.queryByRole("button", {
-      name: /stop streaming/i,
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      await waitFor(() => {
+        expect(mockUseChat.addAssistantMessage).toHaveBeenCalledWith(
+          "Sorry, something went wrong.",
+          { error: true },
+        );
+        expect(mockUseChat.setError).toHaveBeenCalledWith(
+          "Failed to send. Please try again.",
+        );
+      });
     });
-    expect(stopAfter).toBeNull();
+
+    it("does not call onSend when onSend is not provided", async () => {
+      render(<Chat />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      await waitFor(() => {
+        expect(mockUseChat.startStreaming).toHaveBeenCalledWith("Hello");
+      });
+    });
+  });
+
+  describe("submit behavior", () => {
+    it("does not submit when streaming is in progress", async () => {
+      mockUseChat.isStreaming = true;
+
+      render(<Chat />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(mockUseChat.startStreaming).not.toHaveBeenCalled();
+    });
+
+    it("does not call onSend when streaming is in progress", async () => {
+      mockUseChat.isStreaming = true;
+      const onSend = vi.fn();
+
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "Hello" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(mockUseChat.pushUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("does not submit when input is empty", async () => {
+      render(<Chat />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(mockUseChat.startStreaming).not.toHaveBeenCalled();
+    });
+
+    it("does not submit when input contains only whitespace", async () => {
+      render(<Chat />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "   " } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(mockUseChat.startStreaming).not.toHaveBeenCalled();
+    });
+
+    it("does not call onSend when input is empty", async () => {
+      const onSend = vi.fn();
+
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(mockUseChat.pushUserMessage).not.toHaveBeenCalled();
+    });
+
+    it("does not call onSend when input contains only whitespace", async () => {
+      const onSend = vi.fn();
+
+      render(<Chat onSend={onSend} />);
+
+      const input = screen.getByPlaceholderText("Type your message…");
+      fireEvent.change(input, { target: { value: "    " } });
+      fireEvent.keyDown(input, { key: "Enter", code: "Enter", charCode: 13 });
+
+      expect(onSend).not.toHaveBeenCalled();
+      expect(mockUseChat.pushUserMessage).not.toHaveBeenCalled();
+    });
   });
 });

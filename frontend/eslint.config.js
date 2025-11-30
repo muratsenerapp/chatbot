@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
 import { defineConfig } from "eslint/config";
 
@@ -18,9 +19,11 @@ const noLineCommentsRule = {
     messages: { remove: "Line comments starting with // are not allowed. Removed." },
   },
   create(context) {
-    const src = context.getSourceCode();    return {
+    const src = context.getSourceCode();
+    return {
       Program() {
-        const comments = src.getAllComments();        for (const c of comments) {
+        const comments = src.getAllComments();
+        for (const c of comments) {
           if (c.type !== "Line") continue;
           context.report({
             loc: c.loc,
@@ -63,7 +66,10 @@ export default defineConfig([
         ecmaVersion: 2022,
         sourceType: "module",
         ecmaFeatures: { jsx: true },
-        comment: true, loc: true, range: true, tokens: true,
+        comment: true,
+        loc: true,
+        range: true,
+        tokens: true,
       },
       globals: { ...globals.browser, ...globals.es2022 },
     },
@@ -75,7 +81,25 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
 
-    plugins: { internal: { rules: { "no-line-comments": noLineCommentsRule } } },
-    rules: { "internal/no-line-comments": "error", "@typescript-eslint/no-explicit-any": "off", },
+    plugins: {
+      internal: { rules: { "no-line-comments": noLineCommentsRule } },
+      "simple-import-sort": simpleImportSort,
+    },
+    rules: {
+      "internal/no-line-comments": "error",
+      "@typescript-eslint/no-explicit-any": "off",
+      "simple-import-sort/imports": [
+        "error",
+        {
+          groups: [
+            ["^react$", "^react-dom$"],
+            ["^@?\\w"],
+            ["^@/"],
+            ["^\\.\\./", "^\\./"],
+          ],
+        },
+      ],
+      "simple-import-sort/exports": "error",
+    },
   },
 ]);
