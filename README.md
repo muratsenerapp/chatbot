@@ -1,13 +1,13 @@
 # Chatbot
 
 <!-- CI/CD Status -->
-![CI](https://img.shields.io/github/actions/workflow/status/muratsenerapp/chatbot/ci.yml?branch=main&label=CI)
+![CI](https://img.shields.io/github/actions/workflow/status/muratsenerapp/chatbot/ci.yml?label=CI)
 ![Version Bump](https://img.shields.io/github/actions/workflow/status/muratsenerapp/chatbot/version-bump.yml?label=version-bump)
 ![Version](https://img.shields.io/github/v/tag/muratsenerapp/chatbot?label=version)
 
 <!-- Code Coverage -->
-![Backend Coverage](https://img.shields.io/codecov/c/github/muratsenerapp/chatbot?flag=backend&label=backend%20coverage)
-![Frontend Coverage](https://img.shields.io/codecov/c/github/muratsenerapp/chatbot?flag=frontend&label=frontend%20coverage)
+![Backend Coverage](https://img.shields.io/codecov/c/github/muratsenerapp/chatbot/develop?flag=backend&label=backend%20coverage)
+![Frontend Coverage](https://img.shields.io/codecov/c/github/muratsenerapp/chatbot/develop?flag=frontend&label=frontend%20coverage)
 
 <!-- Tech Stack -->
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
