@@ -1,5 +1,25 @@
 # Chatbot
 
+<!-- CI/CD Status -->
+![CI](https://img.shields.io/github/actions/workflow/status/muratsenerapp/chatbot/ci.yml?branch=main&label=CI)
+![Version Bump](https://img.shields.io/github/actions/workflow/status/muratsenerapp/chatbot/version-bump.yml?label=version-bump)
+![Version](https://img.shields.io/github/v/tag/muratsenerapp/chatbot?label=version)
+
+<!-- Code Coverage -->
+![Backend Coverage](https://img.shields.io/codecov/c/github/muratsenerapp/chatbot?flag=backend&label=backend%20coverage)
+![Frontend Coverage](https://img.shields.io/codecov/c/github/muratsenerapp/chatbot?flag=frontend&label=frontend%20coverage)
+
+<!-- Tech Stack -->
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.120-009688?logo=fastapi&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-0.3-1C3C3C?logo=langchain&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?logo=tailwindcss&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
+
 A modern, real-time chatbot application built with FastAPI and React that leverages Ollama for local LLM inference. This project demonstrates a full-stack implementation with streaming responses, session management, and a polished user interface.
 
 ## Overview
@@ -104,9 +124,9 @@ chatbot/
    ```
 
 4. **Access the application:**
-  - Frontend: http://localhost:5173
-  - Backend API docs: http://localhost:8000/api/docs
-  - Ollama: http://localhost:11434
+- Frontend: http://localhost:5173
+- Backend API docs: http://localhost:8000/api/docs
+- Ollama: http://localhost:11434
 
 ## Development Workflow
 
