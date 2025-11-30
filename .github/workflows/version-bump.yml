@@ -1,0 +1,111 @@
+name: Version Bump
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+      - develop
+
+jobs:
+  bump-version:
+    name: Bump Version Tag
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Get latest version tag
+        id: get_version
+        run: |
+          # Get the latest version tag (sorted by version number)
+          LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No existing version tag found. Starting from v0.0.0"
+            LATEST_TAG="v0.0.0"
+          fi
+
+          echo "Latest tag: $LATEST_TAG"
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+          # Parse version components
+          VERSION=${LATEST_TAG#v}
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          echo "patch=$PATCH" >> $GITHUB_OUTPUT
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          MAJOR=${{ steps.get_version.outputs.major }}
+          MINOR=${{ steps.get_version.outputs.minor }}
+          PATCH=${{ steps.get_version.outputs.patch }}
+          BASE_BRANCH=${{ github.event.pull_request.base.ref }}
+
+          echo "Base branch: $BASE_BRANCH"
+          echo "Current version: $MAJOR.$MINOR.$PATCH"
+
+          if [ "$BASE_BRANCH" = "main" ]; then
+            # PR merged to main -> bump minor, reset patch
+            NEW_MINOR=$((MINOR + 1))
+            NEW_VERSION="v${MAJOR}.${NEW_MINOR}.0"
+            BUMP_TYPE="minor"
+          elif [ "$BASE_BRANCH" = "develop" ]; then
+            # PR merged to develop -> bump patch
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+            BUMP_TYPE="patch"
+          else
+            echo "Unknown base branch: $BASE_BRANCH"
+            exit 1
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        run: |
+          NEW_VERSION=${{ steps.new_version.outputs.new_version }}
+          BUMP_TYPE=${{ steps.new_version.outputs.bump_type }}
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create annotated tag with PR info
+          git tag -a "$NEW_VERSION" -m "Release $NEW_VERSION
+
+          Bump type: $BUMP_TYPE
+          PR: #$PR_NUMBER - $PR_TITLE"
+
+          git push origin "$NEW_VERSION"
+
+          echo "✅ Created and pushed tag: $NEW_VERSION"
+
+      - name: Summary
+        run: |
+          echo "## Version Bump Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Previous Version | ${{ steps.get_version.outputs.latest_tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| New Version | ${{ steps.new_version.outputs.new_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bump Type | ${{ steps.new_version.outputs.bump_type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Base Branch | ${{ github.event.pull_request.base.ref }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| PR | #${{ github.event.pull_request.number }} |" >> $GITHUB_STEP_SUMMARY
