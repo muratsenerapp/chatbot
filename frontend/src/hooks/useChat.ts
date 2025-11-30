@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { newId } from "@lib/idGenerator";
 import { openSSE } from "@lib/sseClient";
@@ -63,6 +63,12 @@ export function useChat(): UseChatReturn {
 
   const esCloserRef = useRef<(() => void) | null>(null);
   const streamingAssistantId = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      closeAndClear(esCloserRef);
+    };
+  }, []);
 
   const pushUserMessage = useCallback((text: string): ChatMessage => {
     const userMsg: ChatMessage = { id: newId(), role: "user", content: text };

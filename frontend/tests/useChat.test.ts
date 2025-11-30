@@ -543,4 +543,20 @@ describe("useChat", () => {
       expect(lastSSEOptions.params.session_id).toBe("session-for-retry");
     });
   });
+
+  describe("cleanup on unmount", () => {
+    it("closes active stream when hook unmounts", () => {
+      const { result, unmount } = renderHook(() => useChat());
+
+      act(() => {
+        result.current.startStreaming("Hello");
+      });
+
+      expect(lastCloseFn).toBeDefined();
+
+      unmount();
+
+      expect(lastCloseFn).toHaveBeenCalledTimes(1);
+    });
+  });
 });
