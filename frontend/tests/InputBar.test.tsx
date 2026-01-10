@@ -104,4 +104,52 @@ describe("InputBar", () => {
     expect(handleSubmit).toHaveBeenCalledTimes(1);
     expect(handleSubmit).toHaveBeenCalledWith("click send");
   });
+
+  it("displays character counter", () => {
+    render(<InputBar onSubmit={vi.fn()} />);
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "hello" } });
+
+    expect(screen.getByText("5/4,000")).toBeInTheDocument();
+  });
+
+  it("does not submit when over character limit", () => {
+    const handleSubmit = vi.fn();
+    const maxLength = 10;
+
+    render(<InputBar onSubmit={handleSubmit} maxLength={maxLength} />);
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "a".repeat(11) } });
+
+    fireEvent.keyDown(textarea, {
+      key: "Enter",
+      code: "Enter",
+      charCode: 13,
+    });
+
+    expect(handleSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows warning color when near character limit", () => {
+    render(<InputBar onSubmit={vi.fn()} maxLength={100} />);
+
+    const textarea = screen.getByRole("textbox");
+    // 90% of 100 = 90 characters
+    fireEvent.change(textarea, { target: { value: "a".repeat(90) } });
+
+    const counter = screen.getByText("90/100");
+    expect(counter).toHaveClass("text-amber-500");
+  });
+
+  it("shows error color when over character limit", () => {
+    render(<InputBar onSubmit={vi.fn()} maxLength={100} />);
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "a".repeat(101) } });
+
+    const counter = screen.getByText("101/100");
+    expect(counter).toHaveClass("text-red-500");
+  });
 });
