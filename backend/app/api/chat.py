@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, Query, Request
 from sse_starlette.sse import EventSourceResponse
@@ -117,7 +117,7 @@ async def chat_sync(
 )
 async def chat_stream_get(
     message: str = Query(..., min_length=1),
-    session_id: Optional[str] = Query(default=None),
+    session_id: str | None = Query(default=None),
     service: ChatService = Depends(get_chat_service),
 ) -> EventSourceResponse:
     """Stream assistant tokens via SSE.

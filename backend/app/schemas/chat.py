@@ -5,7 +5,8 @@ Defines minimal message and payload shapes used by the HTTP endpoints.
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Sequence
+from collections.abc import Sequence
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -29,10 +30,10 @@ class ChatIn(BaseModel):
     """
 
     message: str = Field(..., min_length=1, description="User input")
-    session_id: Optional[str] = Field(
+    session_id: str | None = Field(
         default=None, description="Optional session identifier to group turns."
     )
-    messages: Optional[Sequence[ChatMessageIn]] = Field(
+    messages: Sequence[ChatMessageIn] | None = Field(
         default=None,
         description=(
             "Optional explicit conversation messages. "
@@ -48,4 +49,4 @@ class ChatOut(BaseModel):
     """
 
     content: str
-    session_id: Optional[str] = None
+    session_id: str | None = None
