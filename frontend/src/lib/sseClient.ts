@@ -76,9 +76,9 @@ export function openSSE(url: string | URL, opts: OpenSSEOptions = {}) {
       if (onDoneRef) {
         eventSource.removeEventListener("done", onDoneRef);
       }
-      eventSource.onopen = null as any;
-      eventSource.onerror = null as any;
-      eventSource.onmessage = null as any;
+      eventSource.onopen = null;
+      eventSource.onerror = null;
+      eventSource.onmessage = null;
     }
 
     eventSource.close();
