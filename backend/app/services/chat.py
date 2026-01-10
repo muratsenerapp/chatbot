@@ -120,9 +120,11 @@ class ChatService:
         )
 
         logger.info(
-            f"Chat processed: session={session_id}, "
-            f"input={input_tokens}, output={metrics.output_tokens}, "
-            f"elapsed={metrics.elapsed_ms:.1f}ms"
+            "Chat processed: session=%s, input=%d, output=%d, elapsed=%.1fms",
+            session_id,
+            input_tokens,
+            metrics.output_tokens,
+            metrics.elapsed_ms,
         )
 
         return response, metrics
@@ -181,14 +183,18 @@ class ChatService:
         )
 
         logger.info(
-            f"Stream completed: session={session_id}, "
-            f"input={input_tokens}, output={metrics.output_tokens}, "
-            f"elapsed={metrics.elapsed_ms:.1f}ms"
+            "Stream completed: session=%s, input=%d, output=%d, elapsed=%.1fms",
+            session_id,
+            input_tokens,
+            metrics.output_tokens,
+            metrics.elapsed_ms,
         )
 
         if metrics.is_near_limit:
             logger.warning(
-                f"Total tokens near limit: {metrics.total_tokens} (session={session_id})"
+                "Total tokens near limit: %d (session=%s)",
+                metrics.total_tokens,
+                session_id,
             )
 
         yield StreamComplete(
@@ -240,7 +246,10 @@ class ChatService:
 
         if input_tokens > int(INPUT_WARNING_THRESHOLD * num_ctx):
             logger.warning(
-                f"Input near limit: {input_tokens}/{num_ctx} tokens (session={session_id})"
+                "Input near limit: %d/%d tokens (session=%s)",
+                input_tokens,
+                num_ctx,
+                session_id,
             )
 
         return input_tokens, num_ctx, num_predict

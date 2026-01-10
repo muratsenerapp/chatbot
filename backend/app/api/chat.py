@@ -6,9 +6,16 @@ import json
 from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, Query, Request
+from httpx import ConnectError, TimeoutException
+from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.exceptions import handle_chat_error, format_stream_error
+from app.api.exceptions import (
+    format_stream_error,
+    handle_llm_connection_error,
+    handle_unexpected_error,
+    handle_validation_error,
+)
 from app.core.logging import get_logger
 from app.schemas.chat import ChatIn, ChatOut
 from app.services.chat import ChatService, StreamChunk, StreamComplete
@@ -87,17 +94,31 @@ async def chat_sync(
         )
 
         logger.info(
-            f"chat:done sid={sid} chars={len(response)} "
-            f"elapsed_ms={metrics.elapsed_ms:.1f}"
+            "chat:done sid=%s chars=%d elapsed_ms=%.1f",
+            sid,
+            len(response),
+            metrics.elapsed_ms,
         )
 
         if metrics.is_near_limit:
-            logger.warning(f"chat:near_limit sid={sid} total={metrics.total_tokens}")
+            logger.warning("chat:near_limit sid=%s total=%d", sid, metrics.total_tokens)
 
         return ChatOut(content=response, session_id=sid)
 
+    except (ConnectError, TimeoutException) as e:
+        raise handle_llm_connection_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
+
+    except (ValueError, ValidationError) as e:
+        raise handle_validation_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
+
     except Exception as e:
-        raise handle_chat_error(e, sid, endpoint="/api/chat", method="POST") from e
+        raise handle_unexpected_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
 
 
 @router.get(
@@ -136,7 +157,7 @@ async def chat_stream_get(
         EventSourceResponse streaming SSE events.
     """
     sid = ensure_session_id(session_id)
-    logger.info(f"stream:start sid={sid} len={len(message)}")
+    logger.info("stream:start sid=%s len=%d", sid, len(message))
 
     async def token_gen() -> AsyncGenerator[dict, None]:
         """Generate SSE events from the ChatService stream."""

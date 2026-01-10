@@ -76,7 +76,7 @@ class LLMClient:
 
         if llm is not None:
             self.llm: SupportsChat = llm
-            logger.info("LLMClient initialized with injected llm.")
+            logger.info("LLMClient initialized with injected llm")
             return
 
         kwargs: dict[str, Any] = dict(model_kwargs or {})
