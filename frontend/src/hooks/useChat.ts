@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { newId } from "@/lib/idGenerator";
 import { openSSE } from "@/lib/sseClient";
 import { closeAndClear } from "@/lib/streamUtils";
-
 import type { ChatMessage } from "@/types/chat";
 
 const CHAT_STREAM_URL = "/api/chat/stream";
