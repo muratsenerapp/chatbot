@@ -1,8 +1,9 @@
 import { useCallback, useState } from "react";
 
-import { useMessages, type AddAssistantMessageOptions } from "./useMessages";
-import { useSSEStream } from "./useSSEStream";
 import type { ChatMessage } from "@/types/chat";
+
+import { type AddAssistantMessageOptions, useMessages } from "./useMessages";
+import { useSSEStream } from "./useSSEStream";
 
 /** Return type of {@link useChat}. */
 export type UseChatReturn = {

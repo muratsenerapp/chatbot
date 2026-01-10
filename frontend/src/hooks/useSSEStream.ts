@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CHAT_STREAM_URL } from "@/config";
 import { openSSE, type OpenSSEOptions } from "@/lib/sseClient";
 import { closeAndClear } from "@/lib/streamUtils";
-
-const CHAT_STREAM_URL = "/api/chat/stream";
 
 /** Parameters for starting an SSE stream. */
 export type StartStreamParams = {
@@ -57,7 +56,6 @@ export function useSSEStream(): UseSSEStreamReturn {
   const [isStreaming, setIsStreaming] = useState(false);
   const esCloserRef = useRef<(() => void) | null>(null);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       closeAndClear(esCloserRef);
