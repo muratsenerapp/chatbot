@@ -98,7 +98,9 @@ class ChatService:
         """
         start = time.perf_counter()
 
-        model_messages = self._prepare_messages(message, session_id, explicit_messages)
+        model_messages = await self._prepare_messages(
+            message, session_id, explicit_messages
+        )
 
         input_tokens, num_ctx, num_predict = self._calculate_and_validate_input(
             model_messages, session_id
@@ -106,7 +108,9 @@ class ChatService:
 
         response = await self.llm_client.ainvoke(model_messages)
 
-        self._update_memory_if_needed(session_id, message, response, explicit_messages)
+        await self._update_memory_if_needed(
+            session_id, message, response, explicit_messages
+        )
 
         metrics = calculate_chat_metrics(
             input_tokens=input_tokens,
@@ -143,7 +147,9 @@ class ChatService:
         """
         start = time.perf_counter()
 
-        model_messages = self._prepare_messages(message, session_id, explicit_messages)
+        model_messages = await self._prepare_messages(
+            message, session_id, explicit_messages
+        )
 
         input_tokens, num_ctx, num_predict = self._calculate_and_validate_input(
             model_messages, session_id
@@ -163,7 +169,9 @@ class ChatService:
 
         full_text = "".join(assistant_text_parts)
 
-        self._update_memory_if_needed(session_id, message, full_text, explicit_messages)
+        await self._update_memory_if_needed(
+            session_id, message, full_text, explicit_messages
+        )
 
         metrics = calculate_chat_metrics(
             input_tokens=input_tokens,
@@ -188,7 +196,7 @@ class ChatService:
             session_id=session_id, total_chars=char_count, metrics=metrics
         )
 
-    def _prepare_messages(
+    async def _prepare_messages(
         self,
         message: str,
         session_id: str,
@@ -213,8 +221,8 @@ class ChatService:
             return list(explicit_messages)
 
         sys_prompt = self.llm_client.system_prompt
-        self.memory.ensure_session(session_id, sys_prompt)
-        history = self.memory.get_messages(session_id)
+        await self.memory.ensure_session(session_id, sys_prompt)
+        history = await self.memory.get_messages(session_id)
 
         return [*history, HumanMessage(content=message)]
 
@@ -238,7 +246,7 @@ class ChatService:
 
         return input_tokens, num_ctx, num_predict
 
-    def _update_memory_if_needed(
+    async def _update_memory_if_needed(
         self,
         session_id: str,
         user_message: str,
@@ -254,7 +262,7 @@ class ChatService:
             explicit_messages: If provided, memory update is skipped.
         """
         if not explicit_messages:
-            self.memory.append_turn(
+            await self.memory.append_turn(
                 session_id,
                 user_message,
                 assistant_response,

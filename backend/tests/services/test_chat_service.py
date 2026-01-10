@@ -1,9 +1,9 @@
 """Tests for ChatService business logic."""
 
 import pytest
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from app.services.chat import ChatService, ChatMetrics, StreamChunk, StreamComplete
+from app.services.chat import ChatMetrics, ChatService, StreamChunk, StreamComplete
 from app.services.memory import SessionMemory
 
 
@@ -78,13 +78,13 @@ async def test_process_message_updates_memory(chat_service, memory):
     session_id = "test-session"
 
     # Initial state - no messages
-    assert len(memory.get_messages(session_id)) == 0
+    assert len(await memory.get_messages(session_id)) == 0
 
     # Process first message
     await chat_service.process_message(message="Hello", session_id=session_id)
 
     # Should have: system + user + assistant
-    messages = memory.get_messages(session_id)
+    messages = await memory.get_messages(session_id)
     assert len(messages) >= 2  # At least user + assistant
     assert any(isinstance(m, HumanMessage) for m in messages)
     assert any(isinstance(m, AIMessage) for m in messages)
@@ -97,11 +97,11 @@ async def test_process_message_accumulates_history(chat_service, memory):
 
     # First message
     await chat_service.process_message("First", session_id)
-    count_after_first = len(memory.get_messages(session_id))
+    count_after_first = len(await memory.get_messages(session_id))
 
     # Second message
     await chat_service.process_message("Second", session_id)
-    count_after_second = len(memory.get_messages(session_id))
+    count_after_second = len(await memory.get_messages(session_id))
 
     # Should have more messages after second call
     assert count_after_second > count_after_first
@@ -130,7 +130,7 @@ async def test_process_message_with_explicit_messages(chat_service, memory):
 
     # Session memory should NOT be updated when using explicit messages
     # (history should still have the first message only)
-    messages = memory.get_messages(session_id)
+    messages = await memory.get_messages(session_id)
     # Should not contain "Also ignored" since we used explicit messages
     content_list = [m.content for m in messages]
     assert "Also ignored" not in content_list
@@ -242,7 +242,7 @@ async def test_process_message_stream_updates_memory(chat_service, memory):
         pass  # Consume all items
 
     # Memory should be updated
-    messages = memory.get_messages(session_id)
+    messages = await memory.get_messages(session_id)
     assert len(messages) > 0
     assert any(isinstance(m, HumanMessage) for m in messages)
     assert any(isinstance(m, AIMessage) for m in messages)
@@ -350,8 +350,8 @@ async def test_multiple_sessions_independent():
     await service.process_message("Session2 msg", "session-2")
 
     # Sessions should be independent
-    messages_1 = memory.get_messages("session-1")
-    messages_2 = memory.get_messages("session-2")
+    messages_1 = await memory.get_messages("session-1")
+    messages_2 = await memory.get_messages("session-2")
 
     # Each should have their own messages
     content_1 = [m.content for m in messages_1]

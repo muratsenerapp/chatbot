@@ -19,13 +19,11 @@ router = APIRouter(tags=["Chat"])
 logger = get_logger(__name__)
 
 
-def get_chat_service(
-    request: Request,
-) -> ChatService:
-    """Get or create a ChatService instance.
+def get_chat_service(request: Request) -> ChatService:
+    """Get the ChatService instance from app state.
 
-    The service is created lazily on first access and cached in app.state
-    to avoid repeated initialization.
+    The service is created during application startup in the lifespan handler,
+    ensuring thread-safe initialization.
 
     Args:
         request: FastAPI request providing access to app state.
@@ -34,27 +32,15 @@ def get_chat_service(
         ChatService instance ready for processing chat requests.
 
     Raises:
-        RuntimeError: If application dependencies (llm_client, session_memory)
-            are not initialized in app.state.
+        RuntimeError: If ChatService was not initialized during startup.
     """
     service = getattr(request.app.state, "chat_service", None)
 
     if service is None:
-        logger.info("Creating ChatService instance")
-
-        # Get dependencies
-        llm_client = getattr(request.app.state, "llm_client", None)
-        memory = getattr(request.app.state, "session_memory", None)
-
-        if not llm_client or not memory:
-            raise RuntimeError("Application dependencies not initialized")
-
-        # Create and cache service
-        service = ChatService(
-            llm_client=llm_client,
-            memory=memory,
+        raise RuntimeError(
+            "ChatService not initialized. Ensure the application lifespan "
+            "handler has run before processing requests."
         )
-        setattr(request.app.state, "chat_service", service)
 
     return service
 
