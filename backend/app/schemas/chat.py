@@ -29,7 +29,7 @@ class ChatIn(BaseModel):
     Otherwise, `message` is appended to the current session and used with history.
     """
 
-    message: str = Field(..., min_length=1, description="User input")
+    message: str = Field(..., min_length=1, max_length=4000, description="User input")
     session_id: str | None = Field(
         default=None, description="Optional session identifier to group turns."
     )
