@@ -12,7 +12,7 @@ from app.api.exceptions import handle_chat_error, format_stream_error
 from app.core.logging import get_logger
 from app.schemas.chat import ChatIn, ChatOut
 from app.services.chat import ChatService, StreamChunk, StreamComplete
-from app.utils.chat import to_lc_messages
+from app.utils.message_converter import chat_messages_to_langchain
 from app.utils.sessions import ensure_session_id
 
 router = APIRouter(tags=["Chat"])
@@ -81,7 +81,9 @@ async def chat_sync(
         response, metrics = await chat_service.process_message(
             message=data.message,
             session_id=sid,
-            explicit_messages=to_lc_messages(data.messages) if data.messages else None,
+            explicit_messages=(
+                chat_messages_to_langchain(data.messages) if data.messages else None
+            ),
         )
 
         logger.info(

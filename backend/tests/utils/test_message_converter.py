@@ -1,8 +1,13 @@
 """Tests for message conversion utilities."""
 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from app.utils.message_converter import to_langchain_messages, is_langchain_message_list
+from app.schemas.chat import ChatMessageIn
+from app.utils.message_converter import (
+    chat_messages_to_langchain,
+    is_langchain_message_list,
+    to_langchain_messages,
+)
 
 
 def test_to_langchain_messages_simple():
@@ -88,3 +93,64 @@ def test_to_langchain_messages_preserves_order():
     assert messages[1].content == "First"
     assert messages[2].content == "Second"
     assert messages[3].content == "Third"
+
+
+# Tests for chat_messages_to_langchain (ChatMessageIn conversion)
+
+
+def test_chat_messages_to_langchain_simple():
+    """Test converting ChatMessageIn items to LangChain messages."""
+    items = [
+        ChatMessageIn(role="user", content="Hello"),
+        ChatMessageIn(role="assistant", content="Hi there!"),
+    ]
+    messages = chat_messages_to_langchain(items)
+
+    assert len(messages) == 2
+    assert isinstance(messages[0], HumanMessage)
+    assert messages[0].content == "Hello"
+    assert isinstance(messages[1], AIMessage)
+    assert messages[1].content == "Hi there!"
+
+
+def test_chat_messages_to_langchain_with_system():
+    """Test converting ChatMessageIn items including a system message."""
+    items = [
+        ChatMessageIn(role="system", content="You are helpful"),
+        ChatMessageIn(role="user", content="Hello"),
+        ChatMessageIn(role="assistant", content="Hi!"),
+    ]
+    messages = chat_messages_to_langchain(items)
+
+    assert len(messages) == 3
+    assert isinstance(messages[0], SystemMessage)
+    assert messages[0].content == "You are helpful"
+    assert isinstance(messages[1], HumanMessage)
+    assert messages[1].content == "Hello"
+    assert isinstance(messages[2], AIMessage)
+    assert messages[2].content == "Hi!"
+
+
+def test_chat_messages_to_langchain_empty():
+    """Test converting empty list."""
+    messages = chat_messages_to_langchain([])
+    assert len(messages) == 0
+
+
+def test_chat_messages_to_langchain_preserves_order():
+    """Test that message order is preserved during conversion."""
+    items = [
+        ChatMessageIn(role="system", content="System"),
+        ChatMessageIn(role="user", content="First"),
+        ChatMessageIn(role="assistant", content="Response 1"),
+        ChatMessageIn(role="user", content="Second"),
+        ChatMessageIn(role="assistant", content="Response 2"),
+    ]
+    messages = chat_messages_to_langchain(items)
+
+    assert len(messages) == 5
+    assert messages[0].content == "System"
+    assert messages[1].content == "First"
+    assert messages[2].content == "Response 1"
+    assert messages[3].content == "Second"
+    assert messages[4].content == "Response 2"

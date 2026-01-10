@@ -4,26 +4,25 @@ Coordinates LLM invocation, session memory, token counting, and metrics collecti
 for both single-shot and streaming chat interactions.
 """
 
+from __future__ import annotations
+
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Optional, AsyncGenerator
-import time
+from typing import AsyncGenerator
 
 from langchain_core.messages import BaseMessage, HumanMessage
 
+from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.services.llm import LLMClient
 from app.services.memory import SessionMemory
 from app.services.metrics import (
-    ChatMetrics,
     INPUT_WARNING_THRESHOLD,
+    ChatMetrics,
     calculate_chat_metrics,
 )
 from app.utils.token_counter import estimate_tokens_from_messages
-from app.core.logging import get_logger
-
-
-DEFAULT_CONTEXT_WINDOW = 4096
-DEFAULT_MAX_PREDICT = 512
 
 logger = get_logger(__name__)
 
@@ -84,7 +83,7 @@ class ChatService:
         self,
         message: str,
         session_id: str,
-        explicit_messages: Optional[list[BaseMessage]] = None,
+        explicit_messages: list[BaseMessage] | None = None,
     ) -> tuple[str, ChatMetrics]:
         """Process a chat message and return a full response with metrics.
 
@@ -132,7 +131,7 @@ class ChatService:
         self,
         message: str,
         session_id: str,
-        explicit_messages: Optional[list[BaseMessage]] = None,
+        explicit_messages: list[BaseMessage] | None = None,
     ) -> AsyncGenerator[StreamChunk | StreamComplete, None]:
         """Process a chat message and stream response tokens.
 
@@ -200,7 +199,7 @@ class ChatService:
         self,
         message: str,
         session_id: str,
-        explicit_messages: Optional[Sequence[BaseMessage]] = None,
+        explicit_messages: Sequence[BaseMessage] | None = None,
     ) -> list[BaseMessage]:
         """Prepare a mutable message list for LLM invocation.
 
@@ -251,7 +250,7 @@ class ChatService:
         session_id: str,
         user_message: str,
         assistant_response: str,
-        explicit_messages: Optional[list[BaseMessage]],
+        explicit_messages: list[BaseMessage] | None,
     ) -> None:
         """Update session memory if not using explicit messages.
 
@@ -270,8 +269,13 @@ class ChatService:
             )
 
     def _get_context_settings(self) -> tuple[int, int]:
-        """Get context window settings from the LLM client."""
+        """Get context window settings from the LLM client.
+
+        Falls back to centralized config values (OLLAMA_NUM_CTX, OLLAMA_NUM_PREDICT)
+        if the LLM client doesn't have explicit settings.
+        """
+        settings = get_settings()
         return self.llm_client.get_context_limits(
-            default_ctx=DEFAULT_CONTEXT_WINDOW,
-            default_num_predict=DEFAULT_MAX_PREDICT,
+            default_ctx=settings.OLLAMA_NUM_CTX,
+            default_num_predict=settings.OLLAMA_NUM_PREDICT,
         )
