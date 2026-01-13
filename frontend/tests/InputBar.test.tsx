@@ -136,7 +136,7 @@ describe("InputBar", () => {
     render(<InputBar onSubmit={vi.fn()} maxLength={100} />);
 
     const textarea = screen.getByRole("textbox");
-    // 90% of 100 = 90 characters
+
     fireEvent.change(textarea, { target: { value: "a".repeat(90) } });
 
     const counter = screen.getByText("90/100");

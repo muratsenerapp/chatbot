@@ -50,7 +50,6 @@ const noLineCommentsRule = {
 
 export default defineConfig([
   {
-    files: ["**/*.{ts,tsx,js,jsx}"],
     ignores: [
       "**/node_modules/**",
       "**/dist/**",
@@ -58,8 +57,11 @@ export default defineConfig([
       "**/coverage/**",
       "**/assets/**",
       "**/*.min.js",
-      "**/eslint.config.*",
     ],
+  },
+  {
+    files: ["**/*.{ts,tsx,js,jsx}"],
+    ignores: ["**/eslint.config.*"],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
