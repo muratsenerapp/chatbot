@@ -18,7 +18,7 @@ FastAPI-based backend service that provides a streaming chat API powered by Olla
 - Docker & Docker Compose (for Ollama)
 - 8GB+ RAM recommended for the 7B model
 
-## Installation
+## Local Development Setup
 
 ### 1. Set Up Python Environment
 
@@ -54,40 +54,29 @@ cd backend
 pip install -r requirements.txt
 ```
 
-### 3. Start Ollama Container
+### 3. Start Ollama
 
-From the project root directory:
-
-```bash
-docker-compose up -d
-```
-
-This will:
-- Start the Ollama server on port 11434
-- Pull the `qwen2.5:7b-instruct` model (first run may take several minutes)
-- Create a persistent volume for model storage
-
-Verify Ollama is running:
+Make sure Ollama is running before starting the backend. From the project root:
 
 ```bash
-curl http://localhost:11434/api/tags
+docker compose up ollama ollama-init -d
 ```
 
-## Running the Application
+> **First run:** The `ollama-init` service downloads the model (~5GB). This only needs to run once. After that, you can use just `docker compose up ollama -d`.
 
-### Development Mode
+See the [root README](../README.md) for complete Docker setup instructions.
+
+### 4. Run the Backend
 
 Start the server with auto-reload:
 
 ```bash
-cd backend
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Or using the main module directly:
 
 ```bash
-cd backend
 python -m app.main
 ```
 
@@ -96,12 +85,6 @@ The API will be available at:
 - **API Documentation**: http://localhost:8000/api/docs
 - **ReDoc**: http://localhost:8000/api/redoc
 - **OpenAPI JSON**: http://localhost:8000/api/openapi.json
-
-### Production Mode
-
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
 
 ## Configuration
 
@@ -117,7 +100,7 @@ LOG_LEVEL=INFO
 
 # CORS allowed origins (comma-separated or JSON array)
 # Use ["*"] to allow all origins (development only)
-ALLOW_ORIGINS=["http://localhost:3000"]
+ALLOW_ORIGINS=["http://localhost:5173"]
 ```
 
 #### Ollama Connection
@@ -171,17 +154,17 @@ OLLAMA_NUM_PREDICT=512
 # OLLAMA_MIROSTAT_ETA=0.1
 ```
 
-### Example .env File
+### Getting Started with Environment Variables
+
+Copy the example environment file and adjust as needed:
 
 ```bash
-LOG_LEVEL=INFO
-ALLOW_ORIGINS=["http://localhost:3000"]
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:7b-instruct
-OLLAMA_TEMPERATURE=0.2
-OLLAMA_NUM_CTX=4096
-OLLAMA_NUM_PREDICT=512
+cp .env.example .env
 ```
+
+The `.env.example` file contains all available configuration options with sensible defaults. You only need to modify values if you want to change the default behavior.
+
+For Docker Compose usage, environment variables are pre-configured in `docker-compose.yml`.
 
 ## Project Structure
 
@@ -347,7 +330,7 @@ This provides an interactive terminal-based chat session using the configured Ol
 
 3. Restart the container:
    ```bash
-   docker-compose restart ollama
+   docker compose restart ollama
    ```
 
 ### Model Not Found
@@ -357,7 +340,7 @@ This provides an interactive terminal-based chat session using the configured Ol
 **Solutions:**
 1. Wait for initial model pull to complete (check logs):
    ```bash
-   docker-compose logs ollama-init
+   docker compose logs ollama-init
    ```
 
 2. Manually pull the model:
@@ -394,12 +377,11 @@ This provides an interactive terminal-based chat session using the configured Ol
 2. For development, use `ALLOW_ORIGINS=["*"]`
 3. Restart the backend after configuration changes
 
-## Performance Considerations
+## Performance Notes
 
 - **Context Window**: Larger `OLLAMA_NUM_CTX` values increase memory usage
-- **Workers**: Multiple Uvicorn workers share the Ollama connection efficiently
 - **Streaming**: SSE streaming reduces perceived latency for long responses
-- **Session Memory**: Conversation history is stored in-memory per session
+- **Session Memory**: Conversation history is stored in-memory per session (resets on restart)
 
 ## Dependencies
 
