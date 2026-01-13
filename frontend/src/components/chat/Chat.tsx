@@ -72,7 +72,7 @@ export default function Chat({ onSend }: ChatProps) {
   const isEmpty = messages.length === 0;
 
   return (
-    <div className="flex h-[calc(100dvh-64px)] flex-col">
+    <div className="flex h-main-content flex-col">
       {/* Messages */}
       <div
         ref={listRef}

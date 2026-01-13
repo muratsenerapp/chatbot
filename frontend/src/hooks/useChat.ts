@@ -1,17 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
-import { newId } from "@/lib/idGenerator";
-import { openSSE } from "@/lib/sseClient";
-import { closeAndClear } from "@/lib/streamUtils";
 import type { ChatMessage } from "@/types/chat";
 
-const CHAT_STREAM_URL = "/api/chat/stream";
-
-/** Options for adding an assistant message. */
-type AddAssistantMessageOptions = {
-  /** If true, render with error styling. */
-  error?: boolean;
-};
+import { type AddAssistantMessageOptions, useMessages } from "./useMessages";
+import { useSSEStream } from "./useSSEStream";
 
 /** Return type of {@link useChat}. */
 export type UseChatReturn = {
@@ -46,137 +38,83 @@ export type UseChatReturn = {
  * Custom hook for managing chat state and SSE streaming.
  *
  * @remarks
- * Encapsulates all chat-related state including messages, session management,
- * streaming state, and error handling. Provides methods for starting/stopping
- * streams and managing messages.
+ * Composes {@link useMessages} and {@link useSSEStream} to provide
+ * complete chat functionality including messages, session management,
+ * streaming state, and error handling.
  *
  * @returns Chat state and control methods.
  * @public
  */
 export function useChat(): UseChatReturn {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const {
+    messages,
+    pushUserMessage,
+    addAssistantMessage,
+    createAssistantDraft,
+    appendToAssistant,
+    markAssistantError,
+    streamingAssistantId,
+  } = useMessages();
+
+  const { isStreaming, startStream, abortStream } = useSSEStream();
+
   const [error, setError] = useState<string | null>(null);
-  const [isStreaming, setIsStreaming] = useState(false);
   const [lastUserInput, setLastUserInput] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-
-  const esCloserRef = useRef<(() => void) | null>(null);
-  const streamingAssistantId = useRef<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      closeAndClear(esCloserRef);
-    };
-  }, []);
-
-  const pushUserMessage = useCallback((text: string): ChatMessage => {
-    const userMsg: ChatMessage = { id: newId(), role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
-    return userMsg;
-  }, []);
-
-  const addAssistantMessage = useCallback(
-    (content: string, options?: AddAssistantMessageOptions): ChatMessage => {
-      const msg: ChatMessage = {
-        id: newId(),
-        role: "assistant",
-        content,
-        error: options?.error,
-      };
-      setMessages((prev) => [...prev, msg]);
-      return msg;
-    },
-    [],
-  );
-
-  const createAssistantDraft = useCallback((): ChatMessage => {
-    const id = newId();
-    streamingAssistantId.current = id;
-    const draft: ChatMessage = { id, role: "assistant", content: "" };
-    setMessages((prev) => [...prev, draft]);
-    return draft;
-  }, []);
-
-  const appendToAssistant = useCallback((token: string): void => {
-    const id = streamingAssistantId.current;
-    if (!id || !token) return;
-    setMessages((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, content: m.content + token } : m)),
-    );
-  }, []);
-
-  const markAssistantError = useCallback(
-    (msg = "Sorry, something went wrong."): void => {
-      const id = streamingAssistantId.current;
-      if (!id) return;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, content: msg, error: true } : m,
-        ),
-      );
-    },
-    [],
-  );
-
-  const clearStreamRefs = useCallback((): void => {
-    setIsStreaming(false);
-    esCloserRef.current = null;
-    streamingAssistantId.current = null;
-  }, []);
 
   const startStreaming = useCallback(
     (input: string): void => {
       setError(null);
-      setIsStreaming(true);
       setLastUserInput(input);
 
       const userMsg = pushUserMessage(input);
       createAssistantDraft();
 
-      const closer = openSSE(CHAT_STREAM_URL, {
-        params: {
+      startStream(
+        {
           message: userMsg.content,
-          session_id: sessionId || undefined,
+          sessionId,
         },
-        onToken: (chunk) => {
-          appendToAssistant(chunk);
+        {
+          onToken: (chunk) => {
+            appendToAssistant(chunk);
+          },
+          onDone: (metrics) => {
+            if (metrics?.session_id && metrics.session_id !== sessionId) {
+              setSessionId(metrics.session_id);
+            }
+            streamingAssistantId.current = null;
+          },
+          onServerError: (msg) => {
+            markAssistantError(msg || "Server error");
+            setError(msg || "Request failed.");
+            streamingAssistantId.current = null;
+          },
+          onNetworkError: () => {
+            markAssistantError("Network error.");
+            setError("Network error. Please try again.");
+            streamingAssistantId.current = null;
+          },
+          onClose: () => {
+            streamingAssistantId.current = null;
+          },
         },
-        onDone: (metrics) => {
-          if (metrics?.session_id && metrics.session_id !== sessionId) {
-            setSessionId(metrics.session_id);
-          }
-          clearStreamRefs();
-        },
-        onServerErrorEvent: (msg) => {
-          markAssistantError(msg || "Server error");
-          setError(msg || "Request failed.");
-          clearStreamRefs();
-        },
-        onNetworkError: () => {
-          markAssistantError("Network error.");
-          setError("Network error. Please try again.");
-          clearStreamRefs();
-        },
-        onClose: () => {
-          clearStreamRefs();
-        },
-      });
-
-      esCloserRef.current = () => closer.close();
+      );
     },
     [
       sessionId,
       pushUserMessage,
       createAssistantDraft,
+      startStream,
       appendToAssistant,
       markAssistantError,
-      clearStreamRefs,
+      streamingAssistantId,
     ],
   );
 
   const handleAbort = useCallback((): void => {
-    closeAndClear(esCloserRef);
-  }, []);
+    abortStream();
+  }, [abortStream]);
 
   const handleRetry = useCallback((): void => {
     if (lastUserInput) {
