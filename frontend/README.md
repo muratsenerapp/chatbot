@@ -18,7 +18,7 @@ A modern, responsive React application built with TypeScript and Vite that provi
 - npm 10.9.3+ (specified in `packageManager`)
 - Backend API running on http://localhost:8000
 
-## Installation
+## Local Development Setup
 
 ### 1. Install Node.js
 
@@ -42,9 +42,7 @@ cd frontend
 npm install
 ```
 
-## Running the Application
-
-### Development Mode
+### 3. Run the Frontend
 
 Start the development server with hot module replacement:
 
@@ -52,27 +50,9 @@ Start the development server with hot module replacement:
 npm run dev
 ```
 
-The application will be available at http://localhost:3000
+The application will be available at http://localhost:5173
 
 The Vite dev server is configured to proxy API requests from `/api/*` to the backend at `http://localhost:8000`.
-
-### Production Build
-
-Build the optimized production bundle:
-
-```bash
-npm run build
-```
-
-The build output will be in the `dist/` directory.
-
-### Preview Production Build
-
-Preview the production build locally:
-
-```bash
-npm run preview
-```
 
 ## Available Scripts
 
@@ -324,41 +304,18 @@ describe('MyComponent', () => {
 });
 ```
 
-## Build and Deployment
+## Running with Docker
 
-### Production Build
+This project is designed for **local/self-hosted use via Docker**. The recommended way to run is using the root `docker-compose.yml`:
 
 ```bash
-npm run build
+# From project root
+docker compose up -d
 ```
 
-This creates an optimized production build in `dist/`:
-- Minified JavaScript and CSS
-- Code splitting for optimal loading
-- Asset optimization and hashing
-- Source maps (configurable)
+The frontend will be available at http://localhost:5173 and automatically proxies API requests to the backend.
 
-### Build Output
-
-```
-dist/
-├── assets/          # JS, CSS, and other assets with content hashes
-├── index.html       # Entry HTML file
-└── ...
-```
-
-### Deployment
-
-The `dist/` directory can be deployed to any static hosting service:
-
-- **Vercel**: `vercel deploy`
-- **Netlify**: Drag and drop `dist/` folder or use CLI
-- **GitHub Pages**: Configure GitHub Actions workflow
-- **S3 + CloudFront**: Upload to S3 bucket with CloudFront CDN
-
-**Important:** Ensure your hosting service is configured to:
-1. Serve `index.html` for all routes (SPA routing)
-2. Proxy `/api` requests to your backend server
+See the [root README](../README.md) for complete Docker setup instructions.
 
 ## Troubleshooting
 

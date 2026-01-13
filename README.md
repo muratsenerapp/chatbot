@@ -20,7 +20,17 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-06B6D4?logo=tailwindcss&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 
-A modern, real-time chatbot application built with FastAPI and React that leverages Ollama for local LLM inference. This project demonstrates a full-stack implementation with streaming responses, session management, and a polished user interface.
+A privacy-first, fully offline chatbot that runs entirely on your machine. No cloud services, no API keys, no data leaving your computer.
+
+> **Why This Project?**
+>
+> Most AI chatbots require sending your conversations to external servers. This project gives you a powerful conversational AI that:
+> - **Runs 100% locally** - Your data never leaves your machine
+> - **Works offline** - After initial setup, no internet required
+> - **Zero cost per query** - No API fees or subscriptions
+> - **Full control** - Customize the model, parameters, and behavior
+>
+> Perfect for sensitive conversations, air-gapped environments, or anyone who values privacy.
 
 ## Overview
 
@@ -90,7 +100,7 @@ chatbot/
 │   ├── tests/           # Frontend test suite
 │   └── package.json     # Node dependencies
 │
-├── docker-compose.yml   # Ollama container setup
+├── docker-compose.yml   # Full stack container orchestration
 └── docs/                # Additional documentation
 ```
 
@@ -98,63 +108,45 @@ chatbot/
 
 ### Prerequisites
 
-- **Docker & Docker Compose** - For running Ollama
-- **Python 3.12+** - Backend runtime
-- **Node.js 22.x** - Frontend development
+- **Docker & Docker Compose** - For running the entire stack
 - **8GB+ RAM** - Recommended for running the 7B model
+- **~5GB free disk space** - For the Qwen2.5 7B model download
 
-### Quick Start
+**For local development (optional):**
+- Python 3.12+ - Backend development
+- Node.js 22.x - Frontend development
 
-1. **Start Ollama container:**
-   ```bash
-   docker-compose up -d
-   ```
-   This will pull and start the Qwen2.5 7B Instruct model (first run may take several minutes).
+### Quick Start (Docker)
 
-2. **Set up and run the backend:**
-   ```bash
-   cd backend
-   # See backend/README.md for detailed setup instructions
-   ```
+The easiest way to run the application is with Docker Compose:
 
-3. **Set up and run the frontend:**
-   ```bash
-   cd frontend
-   # See frontend/README.md for detailed setup instructions
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/muratsenerapp/chatbot.git
+cd chatbot
 
-4. **Access the application:**
-- Frontend: http://localhost:5173
-- Backend API docs: http://localhost:8000/api/docs
-- Ollama: http://localhost:11434
+# Start all services (Ollama, Backend, Frontend)
+docker compose up -d
+```
 
-## Development Workflow
+> **Note:** The first run may take several minutes as Docker downloads the Qwen2.5 7B model (~5GB).
 
-### Backend Development
+Once running, access the application:
+- **Chat UI:** http://localhost:5173
+- **API Docs:** http://localhost:8000/api/docs
+- **Ollama API:** http://localhost:11434
 
-The backend provides a REST API with streaming support. For setup, configuration, and development instructions, see [backend/README.md](backend/README.md).
+To stop all services:
+```bash
+docker compose down
+```
 
-### Frontend Development
+### Local Development
 
-The frontend is a React SPA with hot module replacement. For setup, development, and testing instructions, see [frontend/README.md](frontend/README.md).
+For development with hot-reload, see the component READMEs:
 
-### Testing
-
-Both frontend and backend include comprehensive test suites. Refer to the respective README files for running tests.
-
-## Configuration
-
-The application can be configured via environment variables:
-
-- **Backend**: See [backend/README.md](backend/README.md#configuration) for Ollama connection, LLM parameters, and CORS settings
-- **Frontend**: Vite proxy configuration in `vite.config.ts` routes API calls to the backend
-
-## API Documentation
-
-Once the backend is running, interactive API documentation is available at:
-
-- **Swagger UI**: http://localhost:8000/api/docs
-- **ReDoc**: http://localhost:8000/api/redoc
+- **[Backend README](backend/README.md)** - Python environment, configuration options, API documentation
+- **[Frontend README](frontend/README.md)** - Node.js setup, available scripts, component development
 
 ## License
 
@@ -163,9 +155,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Author
 
 **Murat Şener**
-
----
-
-For detailed setup and development instructions, please refer to:
-- [Backend README](backend/README.md)
-- [Frontend README](frontend/README.md)
