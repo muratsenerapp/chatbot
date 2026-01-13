@@ -1,0 +1,186 @@
+"""Chat API endpoints providing single-shot replies and Server-Sent Events (SSE) token streams."""
+
+from __future__ import annotations
+
+import json
+from collections.abc import AsyncGenerator
+
+from fastapi import APIRouter, Depends, Query, Request
+from httpx import ConnectError, TimeoutException
+from pydantic import ValidationError
+from sse_starlette.sse import EventSourceResponse
+
+from app.api.exceptions import (
+    format_stream_error,
+    handle_llm_connection_error,
+    handle_unexpected_error,
+    handle_validation_error,
+)
+from app.core.logging import get_logger
+from app.schemas.chat import ChatIn, ChatOut
+from app.services.chat import ChatService, StreamChunk, StreamComplete
+from app.utils.message_converter import chat_messages_to_langchain
+from app.utils.sessions import ensure_session_id
+
+router = APIRouter(tags=["Chat"])
+logger = get_logger(__name__)
+
+
+def get_chat_service(request: Request) -> ChatService:
+    """Get the ChatService instance from app state.
+
+    The service is created during application startup in the lifespan handler,
+    ensuring thread-safe initialization.
+
+    Args:
+        request: FastAPI request providing access to app state.
+
+    Returns:
+        ChatService instance ready for processing chat requests.
+
+    Raises:
+        RuntimeError: If ChatService was not initialized during startup.
+    """
+    service = getattr(request.app.state, "chat_service", None)
+
+    if service is None:
+        raise RuntimeError(
+            "ChatService not initialized. Ensure the application lifespan "
+            "handler has run before processing requests."
+        )
+
+    return service
+
+
+@router.post(
+    "/chat",
+    response_model=ChatOut,
+    summary="Single-shot chat completion",
+    description=(
+        "Generates a single response using the current session history (if any) "
+        "or explicit messages supplied in the request body."
+    ),
+    responses={
+        200: {"description": "OK"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def chat_sync(
+    data: ChatIn,
+    chat_service: ChatService = Depends(get_chat_service),
+) -> ChatOut:
+    """Single-shot chat completion.
+
+    Args:
+        data: Chat request containing user message and optional session/messages.
+        chat_service: Injected ChatService dependency.
+
+    Returns:
+        ChatOut containing assistant response and session ID.
+
+    Raises:
+        HTTPException: 503 if LLM service is unavailable, 400 for invalid
+            input payloads, or 500 for unexpected errors.
+    """
+    sid = ensure_session_id(data.session_id)
+
+    try:
+        response, metrics = await chat_service.process_message(
+            message=data.message,
+            session_id=sid,
+            explicit_messages=(
+                chat_messages_to_langchain(data.messages) if data.messages else None
+            ),
+        )
+
+        logger.info(
+            "chat:done sid=%s chars=%d elapsed_ms=%.1f",
+            sid,
+            len(response),
+            metrics.elapsed_ms,
+        )
+
+        if metrics.is_near_limit:
+            logger.warning("chat:near_limit sid=%s total=%d", sid, metrics.total_tokens)
+
+        return ChatOut(content=response, session_id=sid)
+
+    except (ConnectError, TimeoutException) as e:
+        raise handle_llm_connection_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
+
+    except (ValueError, ValidationError) as e:
+        raise handle_validation_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
+
+    except Exception as e:
+        raise handle_unexpected_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
+
+
+@router.get(
+    "/chat/stream",
+    summary="SSE token stream",
+    description=(
+        "Streams tokens over Server-Sent Events. Emits `token` events for chunks, "
+        "`done` with basic metrics on completion, and `backend-error` on failures "
+        "(HTTP 200 is kept per SSE semantics)."
+    ),
+    responses={
+        200: {
+            "description": "Event stream of tokens and terminal events.",
+            "content": {"text/event-stream": {}},
+        }
+    },
+)
+async def chat_stream_get(
+    message: str = Query(..., min_length=1),
+    session_id: str | None = Query(default=None),
+    service: ChatService = Depends(get_chat_service),
+) -> EventSourceResponse:
+    """Stream assistant tokens via SSE.
+
+    Events: `token` (string chunk), `done` (JSON metrics), `backend-error` (string message).
+    Errors are signaled via SSE events instead of HTTP errors to preserve the
+    stream (per SSE semantics), so this handler does not raise on model/runtime
+    failures.
+
+    Args:
+        message: User input text (query parameter).
+        session_id: Optional session identifier (query parameter).
+        service: Injected ChatService dependency.
+
+    Returns:
+        EventSourceResponse streaming SSE events.
+    """
+    sid = ensure_session_id(session_id)
+    logger.info("stream:start sid=%s len=%d", sid, len(message))
+
+    async def token_gen() -> AsyncGenerator[dict, None]:
+        """Generate SSE events from the ChatService stream."""
+        try:
+            async for item in service.process_message_stream(
+                message=message,
+                session_id=sid,
+            ):
+                if isinstance(item, StreamChunk):
+                    # Yield token event
+                    yield {"event": "token", "data": item.token}
+
+                elif isinstance(item, StreamComplete):
+                    # Yield done event with metrics
+                    metrics = {
+                        "session_id": item.session_id,
+                        "chars": item.total_chars,
+                        "elapsed_ms": round(item.metrics.elapsed_ms, 1),
+                    }
+                    yield {"event": "done", "data": json.dumps(metrics)}
+
+        except Exception as e:
+            error_data = format_stream_error(e, sid, endpoint="/api/chat/stream")
+            yield {"event": "backend-error", "data": json.dumps(error_data)}
+
+    return EventSourceResponse(token_gen())

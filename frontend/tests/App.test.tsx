@@ -1,0 +1,40 @@
+import { render, screen } from "@testing-library/react";
+import { beforeAll, describe, expect,it, vi } from "vitest";
+
+import App from "@/App";
+
+beforeAll(() => {
+  if (!window.matchMedia) {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  }
+});
+
+describe("App", () => {
+  it("renders the header, theme toggle, and chat input", () => {
+    render(<App />);
+
+    const title = screen.getByText("Chatbot");
+    const themeSwitch = screen.getByRole("switch", {
+      name: /toggle dark mode/i,
+    });
+    const input = screen.getByPlaceholderText("Type your message…");
+
+    expect(title).toBeDefined();
+    expect(themeSwitch).toBeDefined();
+    expect(input).toBeDefined();
+
+    expect(title.textContent).toContain("Chatbot");
+  });
+});
