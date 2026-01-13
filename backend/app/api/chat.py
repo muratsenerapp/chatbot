@@ -3,29 +3,34 @@
 from __future__ import annotations
 
 import json
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, Query, Request
+from httpx import ConnectError, TimeoutException
+from pydantic import ValidationError
 from sse_starlette.sse import EventSourceResponse
 
-from app.api.exceptions import handle_chat_error, format_stream_error
+from app.api.exceptions import (
+    format_stream_error,
+    handle_llm_connection_error,
+    handle_unexpected_error,
+    handle_validation_error,
+)
 from app.core.logging import get_logger
 from app.schemas.chat import ChatIn, ChatOut
 from app.services.chat import ChatService, StreamChunk, StreamComplete
-from app.utils.chat import to_lc_messages
+from app.utils.message_converter import chat_messages_to_langchain
 from app.utils.sessions import ensure_session_id
 
 router = APIRouter(tags=["Chat"])
 logger = get_logger(__name__)
 
 
-def get_chat_service(
-    request: Request,
-) -> ChatService:
-    """Get or create a ChatService instance.
+def get_chat_service(request: Request) -> ChatService:
+    """Get the ChatService instance from app state.
 
-    The service is created lazily on first access and cached in app.state
-    to avoid repeated initialization.
+    The service is created during application startup in the lifespan handler,
+    ensuring thread-safe initialization.
 
     Args:
         request: FastAPI request providing access to app state.
@@ -34,27 +39,15 @@ def get_chat_service(
         ChatService instance ready for processing chat requests.
 
     Raises:
-        RuntimeError: If application dependencies (llm_client, session_memory)
-            are not initialized in app.state.
+        RuntimeError: If ChatService was not initialized during startup.
     """
     service = getattr(request.app.state, "chat_service", None)
 
     if service is None:
-        logger.info("Creating ChatService instance")
-
-        # Get dependencies
-        llm_client = getattr(request.app.state, "llm_client", None)
-        memory = getattr(request.app.state, "session_memory", None)
-
-        if not llm_client or not memory:
-            raise RuntimeError("Application dependencies not initialized")
-
-        # Create and cache service
-        service = ChatService(
-            llm_client=llm_client,
-            memory=memory,
+        raise RuntimeError(
+            "ChatService not initialized. Ensure the application lifespan "
+            "handler has run before processing requests."
         )
-        setattr(request.app.state, "chat_service", service)
 
     return service
 
@@ -95,21 +88,37 @@ async def chat_sync(
         response, metrics = await chat_service.process_message(
             message=data.message,
             session_id=sid,
-            explicit_messages=to_lc_messages(data.messages) if data.messages else None,
+            explicit_messages=(
+                chat_messages_to_langchain(data.messages) if data.messages else None
+            ),
         )
 
         logger.info(
-            f"chat:done sid={sid} chars={len(response)} "
-            f"elapsed_ms={metrics.elapsed_ms:.1f}"
+            "chat:done sid=%s chars=%d elapsed_ms=%.1f",
+            sid,
+            len(response),
+            metrics.elapsed_ms,
         )
 
         if metrics.is_near_limit:
-            logger.warning(f"chat:near_limit sid={sid} total={metrics.total_tokens}")
+            logger.warning("chat:near_limit sid=%s total=%d", sid, metrics.total_tokens)
 
         return ChatOut(content=response, session_id=sid)
 
+    except (ConnectError, TimeoutException) as e:
+        raise handle_llm_connection_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
+
+    except (ValueError, ValidationError) as e:
+        raise handle_validation_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
+
     except Exception as e:
-        raise handle_chat_error(e, sid, endpoint="/api/chat", method="POST") from e
+        raise handle_unexpected_error(
+            e, sid, endpoint="/api/chat", method="POST"
+        ) from e
 
 
 @router.get(
@@ -129,7 +138,7 @@ async def chat_sync(
 )
 async def chat_stream_get(
     message: str = Query(..., min_length=1),
-    session_id: Optional[str] = Query(default=None),
+    session_id: str | None = Query(default=None),
     service: ChatService = Depends(get_chat_service),
 ) -> EventSourceResponse:
     """Stream assistant tokens via SSE.
@@ -148,7 +157,7 @@ async def chat_stream_get(
         EventSourceResponse streaming SSE events.
     """
     sid = ensure_session_id(session_id)
-    logger.info(f"stream:start sid={sid} len={len(message)}")
+    logger.info("stream:start sid=%s len=%d", sid, len(message))
 
     async def token_gen() -> AsyncGenerator[dict, None]:
         """Generate SSE events from the ChatService stream."""

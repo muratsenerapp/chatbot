@@ -4,26 +4,25 @@ Coordinates LLM invocation, session memory, token counting, and metrics collecti
 for both single-shot and streaming chat interactions.
 """
 
+from __future__ import annotations
+
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Optional, AsyncGenerator
-import time
+from typing import AsyncGenerator
 
 from langchain_core.messages import BaseMessage, HumanMessage
 
+from app.core.config import get_settings
+from app.core.logging import get_logger
 from app.services.llm import LLMClient
 from app.services.memory import SessionMemory
 from app.services.metrics import (
-    ChatMetrics,
     INPUT_WARNING_THRESHOLD,
+    ChatMetrics,
     calculate_chat_metrics,
 )
 from app.utils.token_counter import estimate_tokens_from_messages
-from app.core.logging import get_logger
-
-
-DEFAULT_CONTEXT_WINDOW = 4096
-DEFAULT_MAX_PREDICT = 512
 
 logger = get_logger(__name__)
 
@@ -84,7 +83,7 @@ class ChatService:
         self,
         message: str,
         session_id: str,
-        explicit_messages: Optional[list[BaseMessage]] = None,
+        explicit_messages: list[BaseMessage] | None = None,
     ) -> tuple[str, ChatMetrics]:
         """Process a chat message and return a full response with metrics.
 
@@ -98,7 +97,9 @@ class ChatService:
         """
         start = time.perf_counter()
 
-        model_messages = self._prepare_messages(message, session_id, explicit_messages)
+        model_messages = await self._prepare_messages(
+            message, session_id, explicit_messages
+        )
 
         input_tokens, num_ctx, num_predict = self._calculate_and_validate_input(
             model_messages, session_id
@@ -106,7 +107,9 @@ class ChatService:
 
         response = await self.llm_client.ainvoke(model_messages)
 
-        self._update_memory_if_needed(session_id, message, response, explicit_messages)
+        await self._update_memory_if_needed(
+            session_id, message, response, explicit_messages
+        )
 
         metrics = calculate_chat_metrics(
             input_tokens=input_tokens,
@@ -117,9 +120,11 @@ class ChatService:
         )
 
         logger.info(
-            f"Chat processed: session={session_id}, "
-            f"input={input_tokens}, output={metrics.output_tokens}, "
-            f"elapsed={metrics.elapsed_ms:.1f}ms"
+            "Chat processed: session=%s, input=%d, output=%d, elapsed=%.1fms",
+            session_id,
+            input_tokens,
+            metrics.output_tokens,
+            metrics.elapsed_ms,
         )
 
         return response, metrics
@@ -128,7 +133,7 @@ class ChatService:
         self,
         message: str,
         session_id: str,
-        explicit_messages: Optional[list[BaseMessage]] = None,
+        explicit_messages: list[BaseMessage] | None = None,
     ) -> AsyncGenerator[StreamChunk | StreamComplete, None]:
         """Process a chat message and stream response tokens.
 
@@ -143,7 +148,9 @@ class ChatService:
         """
         start = time.perf_counter()
 
-        model_messages = self._prepare_messages(message, session_id, explicit_messages)
+        model_messages = await self._prepare_messages(
+            message, session_id, explicit_messages
+        )
 
         input_tokens, num_ctx, num_predict = self._calculate_and_validate_input(
             model_messages, session_id
@@ -163,7 +170,9 @@ class ChatService:
 
         full_text = "".join(assistant_text_parts)
 
-        self._update_memory_if_needed(session_id, message, full_text, explicit_messages)
+        await self._update_memory_if_needed(
+            session_id, message, full_text, explicit_messages
+        )
 
         metrics = calculate_chat_metrics(
             input_tokens=input_tokens,
@@ -174,25 +183,29 @@ class ChatService:
         )
 
         logger.info(
-            f"Stream completed: session={session_id}, "
-            f"input={input_tokens}, output={metrics.output_tokens}, "
-            f"elapsed={metrics.elapsed_ms:.1f}ms"
+            "Stream completed: session=%s, input=%d, output=%d, elapsed=%.1fms",
+            session_id,
+            input_tokens,
+            metrics.output_tokens,
+            metrics.elapsed_ms,
         )
 
         if metrics.is_near_limit:
             logger.warning(
-                f"Total tokens near limit: {metrics.total_tokens} (session={session_id})"
+                "Total tokens near limit: %d (session=%s)",
+                metrics.total_tokens,
+                session_id,
             )
 
         yield StreamComplete(
             session_id=session_id, total_chars=char_count, metrics=metrics
         )
 
-    def _prepare_messages(
+    async def _prepare_messages(
         self,
         message: str,
         session_id: str,
-        explicit_messages: Optional[Sequence[BaseMessage]] = None,
+        explicit_messages: Sequence[BaseMessage] | None = None,
     ) -> list[BaseMessage]:
         """Prepare a mutable message list for LLM invocation.
 
@@ -213,8 +226,8 @@ class ChatService:
             return list(explicit_messages)
 
         sys_prompt = self.llm_client.system_prompt
-        self.memory.ensure_session(session_id, sys_prompt)
-        history = self.memory.get_messages(session_id)
+        await self.memory.ensure_session(session_id, sys_prompt)
+        history = await self.memory.get_messages(session_id)
 
         return [*history, HumanMessage(content=message)]
 
@@ -233,17 +246,20 @@ class ChatService:
 
         if input_tokens > int(INPUT_WARNING_THRESHOLD * num_ctx):
             logger.warning(
-                f"Input near limit: {input_tokens}/{num_ctx} tokens (session={session_id})"
+                "Input near limit: %d/%d tokens (session=%s)",
+                input_tokens,
+                num_ctx,
+                session_id,
             )
 
         return input_tokens, num_ctx, num_predict
 
-    def _update_memory_if_needed(
+    async def _update_memory_if_needed(
         self,
         session_id: str,
         user_message: str,
         assistant_response: str,
-        explicit_messages: Optional[list[BaseMessage]],
+        explicit_messages: list[BaseMessage] | None,
     ) -> None:
         """Update session memory if not using explicit messages.
 
@@ -254,7 +270,7 @@ class ChatService:
             explicit_messages: If provided, memory update is skipped.
         """
         if not explicit_messages:
-            self.memory.append_turn(
+            await self.memory.append_turn(
                 session_id,
                 user_message,
                 assistant_response,
@@ -262,8 +278,13 @@ class ChatService:
             )
 
     def _get_context_settings(self) -> tuple[int, int]:
-        """Get context window settings from the LLM client."""
+        """Get context window settings from the LLM client.
+
+        Falls back to centralized config values (OLLAMA_NUM_CTX, OLLAMA_NUM_PREDICT)
+        if the LLM client doesn't have explicit settings.
+        """
+        settings = get_settings()
         return self.llm_client.get_context_limits(
-            default_ctx=DEFAULT_CONTEXT_WINDOW,
-            default_num_predict=DEFAULT_MAX_PREDICT,
+            default_ctx=settings.OLLAMA_NUM_CTX,
+            default_num_predict=settings.OLLAMA_NUM_PREDICT,
         )

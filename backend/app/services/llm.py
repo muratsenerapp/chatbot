@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any, AsyncGenerator, AsyncIterator, Mapping, Protocol, Sequence
 
-from langchain_core.messages import BaseMessage, AIMessage, AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
 from langchain_ollama import ChatOllama
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.utils.message_converter import (
-    to_langchain_messages,
     is_langchain_message_list,
+    to_langchain_messages,
 )
 
 logger = get_logger(__name__)
@@ -75,7 +76,7 @@ class LLMClient:
 
         if llm is not None:
             self.llm: SupportsChat = llm
-            logger.info("LLMClient initialized with injected llm.")
+            logger.info("LLMClient initialized with injected llm")
             return
 
         kwargs: dict[str, Any] = dict(model_kwargs or {})
@@ -219,13 +220,14 @@ class LLMClient:
     def get_context_limits(
         self,
         *,
-        default_ctx: int = 4096,
-        default_num_predict: int = 512,
+        default_ctx: int | None = None,
+        default_num_predict: int | None = None,
     ) -> tuple[int, int]:
         """Return approximate context window and max prediction tokens.
 
         Reads provider-specific configuration from the underlying model when available
-        and falls back to the given defaults otherwise.
+        and falls back to the given defaults otherwise. If no defaults are provided,
+        uses centralized config values (OLLAMA_NUM_CTX, OLLAMA_NUM_PREDICT).
 
         Args:
             default_ctx: Fallback context window size if not configured.
@@ -234,13 +236,23 @@ class LLMClient:
         Returns:
             Tuple of (num_ctx, num_predict) as integers.
         """
+        settings = get_settings()
+        effective_ctx = (
+            default_ctx if default_ctx is not None else settings.OLLAMA_NUM_CTX
+        )
+        effective_predict = (
+            default_num_predict
+            if default_num_predict is not None
+            else settings.OLLAMA_NUM_PREDICT
+        )
+
         model_kwargs = getattr(self.llm, "model_kwargs", None)
 
         if isinstance(model_kwargs, dict):
-            num_ctx = model_kwargs.get("num_ctx", default_ctx)
-            num_predict = model_kwargs.get("num_predict", default_num_predict)
+            num_ctx = model_kwargs.get("num_ctx", effective_ctx)
+            num_predict = model_kwargs.get("num_predict", effective_predict)
         else:
-            num_ctx, num_predict = default_ctx, default_num_predict
+            num_ctx, num_predict = effective_ctx, effective_predict
 
         try:
             return int(num_ctx), int(num_predict)
@@ -251,4 +263,4 @@ class LLMClient:
                 num_ctx,
                 num_predict,
             )
-            return default_ctx, default_num_predict
+            return effective_ctx, effective_predict

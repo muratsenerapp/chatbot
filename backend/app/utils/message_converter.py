@@ -1,15 +1,25 @@
-"""Message conversion utilities between string sequences and LangChain messages.
+"""Message conversion utilities between various formats and LangChain messages.
 
-Handles bidirectional conversion for LLM communication layer.
+Provides centralized conversion functions for:
+- Raw string sequences to LangChain messages
+- API schema (ChatMessageIn) objects to LangChain messages
+
+All message conversion logic should live here to avoid DRY violations.
 """
 
-from typing import Sequence, Optional
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Sequence
+
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+
+if TYPE_CHECKING:
+    from app.schemas.chat import ChatMessageIn
 
 
 def to_langchain_messages(
     user_messages: Sequence[str],
-    system_prompt: Optional[str] = None,
+    system_prompt: str | None = None,
 ) -> list[BaseMessage]:
     """Convert user strings to LangChain Message objects.
 
@@ -30,6 +40,28 @@ def to_langchain_messages(
         messages.append(HumanMessage(content=text))
 
     return messages
+
+
+def chat_messages_to_langchain(items: Sequence[ChatMessageIn]) -> list[BaseMessage]:
+    """Convert API ChatMessageIn items to LangChain messages.
+
+    Handles all three role types: system, user, and assistant.
+
+    Args:
+        items: Conversation turns in API shape, ordered oldest→newest.
+
+    Returns:
+        LangChain messages in the same order as ``items``.
+    """
+    out: list[BaseMessage] = []
+    for m in items:
+        if m.role == "system":
+            out.append(SystemMessage(content=m.content))
+        elif m.role == "user":
+            out.append(HumanMessage(content=m.content))
+        else:
+            out.append(AIMessage(content=m.content))
+    return out
 
 
 def is_langchain_message_list(messages: Sequence) -> bool:

@@ -7,47 +7,90 @@ converting internal exceptions to appropriate HTTP status codes.
 from fastapi import HTTPException
 from httpx import ConnectError, TimeoutException
 from pydantic import ValidationError
+
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def handle_chat_error(
-    e: Exception, session_id: str, endpoint: str, method: str
+def handle_llm_connection_error(
+    e: ConnectError | TimeoutException,
+    session_id: str,
+    endpoint: str,
+    method: str,
 ) -> HTTPException:
-    """Convert exceptions to appropriate HTTPException with full context.
-
-    Maps different exception types to HTTP status codes:
-    - ConnectError/TimeoutException -> 503
-    - ValueError/ValidationError -> 400
-    - Other exceptions -> 500
+    """Handle LLM connection errors (ConnectError, TimeoutException).
 
     Args:
-        e: The caught exception to convert.
+        e: The connection or timeout exception.
         session_id: Current session identifier for logging.
         endpoint: API endpoint path for logging context.
         method: HTTP method (GET/POST) for logging context.
 
     Returns:
-        HTTPException with appropriate status code and message.
+        HTTPException with 503 status code.
     """
-
-    # Full context prefix
-    log_prefix = _build_log_prefix(
-        session_id=session_id,
-        endpoint=endpoint,
-        method=method,
+    logger.error(
+        "%s %s sid=%s llm_connection_error: %s",
+        method,
+        endpoint,
+        session_id,
+        type(e).__name__,
     )
+    return HTTPException(503, "LLM service unavailable")
 
-    if isinstance(e, (ConnectError, TimeoutException)):
-        logger.error(f"{log_prefix} llm_connection_error")
-        return HTTPException(503, "LLM service unavailable")
 
-    if isinstance(e, (ValueError, ValidationError)):
-        logger.warning(f"{log_prefix} validation_error: {e}")
-        return HTTPException(400, f"Invalid input: {e}")
+def handle_validation_error(
+    e: ValueError | ValidationError,
+    session_id: str,
+    endpoint: str,
+    method: str,
+) -> HTTPException:
+    """Handle validation errors (ValueError, ValidationError).
 
-    logger.exception(f"{log_prefix} unexpected_error")
+    Args:
+        e: The validation exception.
+        session_id: Current session identifier for logging.
+        endpoint: API endpoint path for logging context.
+        method: HTTP method (GET/POST) for logging context.
+
+    Returns:
+        HTTPException with 400 status code.
+    """
+    logger.warning(
+        "%s %s sid=%s validation_error: %s",
+        method,
+        endpoint,
+        session_id,
+        e,
+    )
+    return HTTPException(400, f"Invalid input: {e}")
+
+
+def handle_unexpected_error(
+    e: Exception,
+    session_id: str,
+    endpoint: str,
+    method: str,
+) -> HTTPException:
+    """Handle unexpected/unknown errors.
+
+    Args:
+        e: The unexpected exception.
+        session_id: Current session identifier for logging.
+        endpoint: API endpoint path for logging context.
+        method: HTTP method (GET/POST) for logging context.
+
+    Returns:
+        HTTPException with 500 status code.
+    """
+    logger.exception(
+        "%s %s sid=%s unexpected_error: %s",
+        method,
+        endpoint,
+        session_id,
+        type(e).__name__,
+    )
     return HTTPException(500, "Error occurred")
 
 
@@ -64,30 +107,32 @@ def format_stream_error(
     Returns:
         Dictionary with 'code' and 'message' keys suitable for JSON serialization.
     """
-
-    log_prefix = _build_log_prefix(
-        session_id=session_id,
-        endpoint=endpoint,
-        method="GET",
-    )
+    method = "GET"
 
     if isinstance(e, (ConnectError, TimeoutException)):
-        logger.error(f"{log_prefix} stream_error code=llm_unavailable")
+        logger.error(
+            "%s %s sid=%s stream_error code=llm_unavailable",
+            method,
+            endpoint,
+            session_id,
+        )
         return {"code": "llm_unavailable", "message": "LLM unavailable"}
 
     if isinstance(e, (ValueError, ValidationError)):
-        logger.warning(f"{log_prefix} stream_error code=validation_error")
+        logger.warning(
+            "%s %s sid=%s stream_error code=validation_error: %s",
+            method,
+            endpoint,
+            session_id,
+            e,
+        )
         return {"code": "validation_error", "message": f"Invalid: {e}"}
 
-    logger.exception(f"{log_prefix} stream_error code=unknown")
+    logger.exception(
+        "%s %s sid=%s stream_error code=unknown: %s",
+        method,
+        endpoint,
+        session_id,
+        type(e).__name__,
+    )
     return {"code": "unknown_error", "message": "Error occurred"}
-
-
-def _build_log_prefix(
-    *,
-    session_id: str,
-    endpoint: str,
-    method: str,
-) -> str:
-    """Consistent log prefix for API errors."""
-    return f"{method} {endpoint} sid={session_id}"

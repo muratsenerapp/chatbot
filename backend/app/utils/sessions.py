@@ -1,11 +1,11 @@
 """Session id utilities."""
 
 from __future__ import annotations
-from typing import Optional
+
 from uuid import uuid4
 
 
-def ensure_session_id(sid: Optional[str]) -> str:
+def ensure_session_id(sid: str | None) -> str:
     """Return the given session id or generate a new UUID4 string.
 
     Args:

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import register_routers
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger, setup_logging
+from app.services.chat import ChatService
 from app.services.llm import LLMClient, DEFAULT_SYSTEM_PROMPT
 from app.services.memory import SessionMemory
 
@@ -67,6 +68,13 @@ def create_lifespan(settings: Settings):
         app.state.session_memory = SessionMemory(
             default_system_prompt=app.state.llm_client.system_prompt
         )
+
+        # Create ChatService once at startup (thread-safe initialization)
+        app.state.chat_service = ChatService(
+            llm_client=app.state.llm_client,
+            memory=app.state.session_memory,
+        )
+        logger.info("ChatService initialized")
 
         try:
             yield

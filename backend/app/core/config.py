@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -50,14 +49,14 @@ class Settings(BaseSettings):
     OLLAMA_REPEAT_PENALTY: float = 1.1
     OLLAMA_NUM_CTX: int = 4096
     OLLAMA_NUM_PREDICT: int = 512
-    OLLAMA_SEED: Optional[int] = None
+    OLLAMA_SEED: int | None = None
     # Comma-separated or JSON array in env, pydantic will parse list[str]
     OLLAMA_STOP: list[str] = Field(default_factory=list)
 
     # Advanced (optional)
-    OLLAMA_MIROSTAT: Optional[int] = None  # 0/1/2
-    OLLAMA_MIROSTAT_TAU: Optional[float] = None
-    OLLAMA_MIROSTAT_ETA: Optional[float] = None
+    OLLAMA_MIROSTAT: int | None = None  # 0/1/2
+    OLLAMA_MIROSTAT_TAU: float | None = None
+    OLLAMA_MIROSTAT_ETA: float | None = None
 
 
 @lru_cache
